@@ -755,7 +755,17 @@ export default function Home() {
       <div className="field-glow field-glow-one" />
       <div className="field-glow field-glow-two" />
       <header className="glass topbar">
-        <button className="brand-mark compact" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><Leaf /><span>AgriSpecimen</span></button>
+        <button
+          className="brand-mark compact topbar-brand"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="AgriSpecimen — Powered by Luntian"
+        >
+          <Leaf />
+          <span className="topbar-brand-copy">
+            <strong>AgriSpecimen</strong>
+            <small>Powered by Luntian</small>
+          </span>
+        </button>
         <nav className={menuOpen ? "nav-actions open" : "nav-actions"}>
           <button className="ghost-button" onClick={() => document.getElementById("registry")?.scrollIntoView({ behavior: "smooth" })}><BookOpenText /> Registry</button>
           <button className="ghost-button" onClick={openImportModal}><FileSpreadsheet /> Import Excel</button>

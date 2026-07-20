@@ -77,6 +77,10 @@ img { display: block; max-width: 100%; }
 .brand-mark { display: inline-flex; align-items: center; gap: 10px; font-weight: 850; letter-spacing: -.03em; }
 .brand-mark svg { color: var(--leaf); }
 .brand-mark.compact { border: 0; background: transparent; font-size: 1.05rem; }
+.topbar-brand { cursor: pointer; text-align: left; }
+.topbar-brand-copy { display: grid; gap: 3px; line-height: 1; }
+.topbar-brand-copy strong { font-size: 1.05rem; font-weight: 850; letter-spacing: -.03em; }
+.topbar-brand-copy small { color: var(--leaf); font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .82; }
 .eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--leaf); font-size: .76rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 
 .primary-button, .ghost-button, .danger-button {
@@ -240,7 +244,7 @@ footer { width: min(1180px, calc(100% - 36px)); margin: 0 auto; padding: 26px 0 
 }
 
 @media (max-width: 760px) {
-  .dashboard-shell { padding-top: 86px; }.topbar { top: 10px; min-height: 62px; border-radius: 20px; }.topbar > .brand-mark { font-size: .95rem; }.menu-button { display: grid; place-items: center; }
+  .dashboard-shell { padding-top: 86px; }.topbar { top: 10px; min-height: 62px; border-radius: 20px; }.topbar > .brand-mark { font-size: .95rem; }.topbar-brand-copy strong { font-size: .95rem; }.topbar-brand-copy small { font-size: .55rem; }.menu-button { display: grid; place-items: center; }
   .nav-actions { position: absolute; top: calc(100% + 8px); left: 0; right: 0; padding: 10px; display: none; background: rgba(248,248,241,.95); border: 1px solid rgba(255,255,255,.8); border-radius: 20px; box-shadow: var(--shadow); }.nav-actions.open { display: grid; }.nav-actions .ghost-button, .nav-actions .primary-button, .profile-button { width: 100%; max-width: none; }.profile-button { justify-content: flex-start; }.profile-button > svg { margin-left: auto; }
   .hero-section { min-height: auto; gap: 30px; margin-top: 34px; }.hero-copy h1 { font-size: clamp(3rem,16vw,5rem); }.hero-visual { min-height: 315px; }.stats-grid { grid-template-columns: 1fr 1fr; margin-bottom: 65px; }.stat-card { padding: 13px; }.stat-card > span { width: 42px; height: 42px; }.stat-card strong { font-size: 1.35rem; }
   .section-heading { align-items: flex-start; }.section-heading > .primary-button { display: none; }.advanced-filter { grid-template-columns: auto 1fr; }.advanced-filter input { grid-column: 2; }.specimen-grid { grid-template-columns: 1fr; }.card-visual { height: 280px; }
