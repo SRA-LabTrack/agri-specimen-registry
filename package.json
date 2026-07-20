@@ -1,0 +1,30 @@
+{
+  "name": "agri-specimen-registry",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "setup:appwrite": "node scripts/setup-appwrite.mjs"
+  },
+  "dependencies": {
+    "appwrite": "26.2.0",
+    "html2canvas": "1.4.1",
+    "jspdf": "4.2.1",
+    "lucide-react": "1.25.0",
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.2.10",
+    "node-appwrite": "27.0.0",
+    "typescript": "^5.9.0"
+  }
+}
