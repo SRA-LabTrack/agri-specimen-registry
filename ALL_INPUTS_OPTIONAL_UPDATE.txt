@@ -1,0 +1,17 @@
+AgriSpecimen — all specimen inputs optional
+
+1. Stop the development server with Ctrl+C.
+2. Copy app/page.tsx into your project's app folder and replace the existing file.
+3. Copy lib/specimen-fields.ts into your project's lib folder and replace the existing file.
+4. Run: npm run dev
+5. Test saving a record with every field blank. The system will automatically generate an ID such as AUTO-....
+6. Upload the change:
+   git add app/page.tsx lib/specimen-fields.ts
+   git commit -m "Make all specimen inputs optional"
+   git push
+
+Notes:
+- Account email/password fields remain required by Appwrite authentication.
+- All fields inside the specimen registration form are optional.
+- Duplicate checking runs only when a Specimen No. is manually entered.
+- Blank Specimen No. values receive a unique automatic ID to remain compatible with the existing Appwrite required/unique specimenNo column.

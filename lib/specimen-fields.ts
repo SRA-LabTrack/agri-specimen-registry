@@ -21,7 +21,7 @@ export const fieldGroups = [
 ] as const;
 
 export const specimenFields: SpecimenField[] = [
-  { key: "specimenNo", label: "Specimen No.", group: "Accession & verification", type: "text", required: true, placeholder: "e.g. VIPM-2026-0001" },
+  { key: "specimenNo", label: "Specimen No. (optional)", group: "Accession & verification", type: "text", placeholder: "Optional — an ID will be generated automatically" },
   { key: "dateCollection", label: "Date of collection", group: "Accession & verification", type: "date" },
   { key: "speciesId", label: "Species ID", group: "Accession & verification", type: "text" },
   { key: "verifiedId", label: "Verified ID", group: "Accession & verification", type: "text" },
@@ -32,9 +32,9 @@ export const specimenFields: SpecimenField[] = [
   { key: "region", label: "Region", group: "Collection location", type: "text" },
   { key: "province", label: "Province", group: "Collection location", type: "text" },
   { key: "locality", label: "Locality", group: "Collection location", type: "text" },
-  { key: "elevation", label: "Elevation (m)", group: "Collection location", type: "number", step: "0.01" },
-  { key: "longitude", label: "Longitude", group: "Collection location", type: "number", step: "0.000001" },
-  { key: "latitude", label: "Latitude", group: "Collection location", type: "number", step: "0.000001" },
+  { key: "elevation", label: "Elevation (m) (optional)", group: "Collection location", type: "number", step: "0.01", placeholder: "Optional" },
+  { key: "longitude", label: "Longitude (optional)", group: "Collection location", type: "number", step: "0.000001", placeholder: "Optional" },
+  { key: "latitude", label: "Latitude (optional)", group: "Collection location", type: "number", step: "0.000001", placeholder: "Optional" },
 
   { key: "habitat", label: "Habitat", group: "Ecology & host", type: "textarea", placeholder: "Describe the field, crop environment, soil, canopy, microhabitat, etc." },
   { key: "hostPlantVariety", label: "Host Plant and Variety", group: "Ecology & host", type: "text" },

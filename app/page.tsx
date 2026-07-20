@@ -7,17 +7,17 @@ import {
   Bug,
   Camera,
   Check,
-  ChevronDown,
   CircleUserRound,
-  Download,
   Edit3,
   Eye,
   FileImage,
+  FileSpreadsheet,
   FileText,
   Filter,
   FlaskConical,
   ImagePlus,
   Leaf,
+  ListChecks,
   LoaderCircle,
   LogOut,
   MapPin,
@@ -29,6 +29,7 @@ import {
   Sprout,
   Trash2,
   UploadCloud,
+  AlertTriangle,
   X,
 } from "lucide-react";
 import { ID, Permission, Query, Role, type Models } from "appwrite";
@@ -53,11 +54,18 @@ import {
   type SpecimenData,
 } from "@/lib/specimen-fields";
 import { parsePhotoMap, parseSpecimenData, type PhotoMap, type SpecimenRow } from "@/lib/types";
+import { parseRegistryWorkbook, type ParsedImportRow } from "@/lib/excel-import";
+import { compressSpecimenImage, formatFileSize, type ImageCompressionResult } from "@/lib/image-compression";
 
 const SAMPLE_STATUSES = ["Collected", "In examination", "Awaiting verification", "Verified", "Preserved", "Archived"];
 
 type AuthMode = "login" | "register";
 type Toast = { type: "success" | "error"; message: string } | null;
+type ImportSummary = { added: number; duplicates: number; failed: number; total: number } | null;
+
+function generateAutomaticSpecimenNo(index = 0): string {
+  return `AUTO-${Date.now().toString(36).toUpperCase()}-${index.toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+}
 
 function formatDate(value?: string): string {
   if (!value) return "Not provided";
@@ -104,9 +112,11 @@ function FieldInput({
   }
 
   if (field.type === "select") {
+    const hasImportedValue = Boolean(value) && !field.options?.includes(value);
     return (
       <select {...common}>
         <option value="">Select an option</option>
+        {hasImportedValue && <option value={value}>{value} (imported value)</option>}
         {field.options?.map((option) => <option key={option}>{option}</option>)}
       </select>
     );
@@ -122,7 +132,7 @@ function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: stri
 
 export default function Home() {
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [checkingSession, setCheckingSession] = useState(appwriteConfigured);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -139,10 +149,21 @@ export default function Home() {
   const [editingRow, setEditingRow] = useState<SpecimenRow | null>(null);
   const [formData, setFormData] = useState<SpecimenData>(emptySpecimen());
   const [photoFiles, setPhotoFiles] = useState<Record<string, File | undefined>>({});
+  const [photoCompressionInfo, setPhotoCompressionInfo] = useState<Record<string, ImageCompressionResult | undefined>>({});
+  const [compressingPhotoSlots, setCompressingPhotoSlots] = useState<Record<string, boolean>>({});
   const [existingPhotos, setExistingPhotos] = useState<PhotoMap>({});
+  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+  const [importRows, setImportRows] = useState<ParsedImportRow[]>([]);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importSummary, setImportSummary] = useState<ImportSummary>(null);
   const [toast, setToast] = useState<Toast>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+  const photoCompressionBusy = Object.values(compressingPhotoSlots).some(Boolean);
 
   const showToast = (next: Toast) => {
     setToast(next);
@@ -160,7 +181,7 @@ export default function Home() {
         total: true,
         ttl: 0,
       });
-      setRows(response.rows as SpecimenRow[]);
+      setRows(response.rows as unknown as SpecimenRow[]);
     } catch (error) {
       showToast({ type: "error", message: `Could not load specimens: ${appwriteError(error)}` });
     } finally {
@@ -169,19 +190,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!appwriteConfigured) {
-      setCheckingSession(false);
-      return;
-    }
+    if (!appwriteConfigured) return;
     account.get()
-      .then((current) => setUser(current))
+      .then(async (current) => {
+        setUser(current);
+        await loadRows();
+      })
       .catch(() => setUser(null))
       .finally(() => setCheckingSession(false));
   }, []);
-
-  useEffect(() => {
-    if (user) void loadRows();
-  }, [user]);
 
   const filteredRows = useMemo(() => {
     const globalNeedle = search.trim().toLowerCase();
@@ -196,15 +213,65 @@ export default function Home() {
     });
   }, [rows, search, filterField, filterValue]);
 
+  const importPlan = useMemo(() => {
+    const existing = new Set(rows.map((row) => row.specimenNo.trim().toLowerCase()).filter(Boolean));
+    const seen = new Set<string>();
+    let duplicates = 0;
+    let generatedIds = 0;
+    let importable = 0;
+
+    for (const item of importRows) {
+      const specimenNo = item.data.specimenNo.trim();
+      if (!specimenNo) {
+        generatedIds += 1;
+        importable += 1;
+        continue;
+      }
+      const normalized = specimenNo.toLowerCase();
+      if (existing.has(normalized) || seen.has(normalized)) {
+        duplicates += 1;
+        continue;
+      }
+      seen.add(normalized);
+      importable += 1;
+    }
+
+    return { importable, duplicates, generatedIds, total: importRows.length };
+  }, [importRows, rows]);
+
   useEffect(() => {
     const elements = document.querySelectorAll<HTMLElement>(".reveal");
+
+    // Keep content visible when a browser blocks or does not support
+    // IntersectionObserver. This prevents invisible but clickable cards.
+    if (!("IntersectionObserver" in window)) {
+      elements.forEach((element) => {
+        element.classList.remove("is-hidden");
+        element.classList.add("is-visible");
+      });
+      return;
+    }
+
     const observer = new IntersectionObserver(
-      (entries) => entries.forEach((entry) => entry.target.classList.toggle("is-visible", entry.isIntersecting)),
-      { threshold: 0.12, rootMargin: "0px 0px -35px 0px" },
+      (entries) => {
+        entries.forEach((entry) => {
+          entry.target.classList.toggle("is-visible", entry.isIntersecting);
+          entry.target.classList.toggle("is-hidden", !entry.isIntersecting);
+        });
+      },
+      { threshold: 0.08, rootMargin: "40px 0px -20px 0px" },
     );
-    elements.forEach((element) => observer.observe(element));
+
+    elements.forEach((element) => {
+      const bounds = element.getBoundingClientRect();
+      const initiallyVisible = bounds.bottom >= 0 && bounds.top <= window.innerHeight;
+      element.classList.toggle("is-visible", initiallyVisible);
+      element.classList.toggle("is-hidden", !initiallyVisible);
+      observer.observe(element);
+    });
+
     return () => observer.disconnect();
-  }, [filteredRows.length, user, formOpen, detailsRow]);
+  }, [filteredRows.length, user, formOpen, detailsRow, importOpen]);
 
   const handleAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -216,6 +283,7 @@ export default function Home() {
       await account.createEmailPasswordSession({ email: authEmail.trim(), password: authPassword });
       const current = await account.get();
       setUser(current);
+      await loadRows();
       setAuthPassword("");
       showToast({ type: "success", message: authMode === "register" ? "Account created successfully." : "Welcome back." });
     } catch (error) {
@@ -239,7 +307,10 @@ export default function Home() {
     setEditingRow(null);
     setFormData(emptySpecimen());
     setPhotoFiles({});
+    setPhotoCompressionInfo({});
+    setCompressingPhotoSlots({});
     setExistingPhotos({});
+    setRemovedPhotoIds([]);
     setFormOpen(true);
   };
 
@@ -247,20 +318,189 @@ export default function Home() {
     setEditingRow(row);
     setFormData({ ...emptySpecimen(), ...parseSpecimenData(row) });
     setPhotoFiles({});
+    setPhotoCompressionInfo({});
+    setCompressingPhotoSlots({});
     setExistingPhotos(parsePhotoMap(row));
+    setRemovedPhotoIds([]);
     setDetailsRow(null);
     setFormOpen(true);
+  };
+
+  const removePhotoSlot = (slotKey: string) => {
+    const existingId = existingPhotos[slotKey];
+    if (existingId) {
+      setRemovedPhotoIds((current) => current.includes(existingId) ? current : [...current, existingId]);
+    }
+    setExistingPhotos((current) => {
+      const next = { ...current };
+      delete next[slotKey];
+      return next;
+    });
+    setPhotoFiles((current) => ({ ...current, [slotKey]: undefined }));
+    setPhotoCompressionInfo((current) => ({ ...current, [slotKey]: undefined }));
+  };
+
+  const selectPhotoForSlot = async (slotKey: string, file?: File) => {
+    if (!file) return;
+    setCompressingPhotoSlots((current) => ({ ...current, [slotKey]: true }));
+    setPhotoCompressionInfo((current) => ({ ...current, [slotKey]: undefined }));
+    try {
+      const result = await compressSpecimenImage(file);
+      setPhotoFiles((current) => ({ ...current, [slotKey]: result.file }));
+      setPhotoCompressionInfo((current) => ({ ...current, [slotKey]: result }));
+    } catch (error) {
+      // Preserve usability: use the original image when browser-side compression fails.
+      setPhotoFiles((current) => ({ ...current, [slotKey]: file }));
+      showToast({ type: "error", message: `Photo compression failed, so the original file will be used: ${appwriteError(error)}` });
+    } finally {
+      setCompressingPhotoSlots((current) => ({ ...current, [slotKey]: false }));
+    }
+  };
+
+  const openImportModal = () => {
+    setImportFileName("");
+    setImportRows([]);
+    setImportWarnings([]);
+    setImportProgress({ current: 0, total: 0 });
+    setImportSummary(null);
+    setImportOpen(true);
+  };
+
+  const analyzeImportFile = async (file?: File) => {
+    if (!file) return;
+    setImportBusy(true);
+    setImportFileName(file.name);
+    setImportRows([]);
+    setImportWarnings([]);
+    setImportSummary(null);
+    try {
+      const analysis = await parseRegistryWorkbook(file);
+      setImportRows(analysis.rows);
+      setImportWarnings(analysis.warnings);
+      if (analysis.rows.length) {
+        showToast({ type: "success", message: `${analysis.rows.length} spreadsheet row${analysis.rows.length === 1 ? "" : "s"} ready for review.` });
+      }
+    } catch (error) {
+      setImportWarnings([`Could not read the Excel file: ${appwriteError(error)}`]);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const importExcelRows = async () => {
+    if (!user || !importRows.length) return;
+    setImportBusy(true);
+    setImportSummary(null);
+    setImportProgress({ current: 0, total: importRows.length });
+
+    const existing = new Set(rows.map((row) => row.specimenNo.trim().toLowerCase()).filter(Boolean));
+    const seen = new Set<string>();
+    let added = 0;
+    let duplicates = 0;
+    let failed = 0;
+
+    for (let index = 0; index < importRows.length; index += 1) {
+      const item = importRows[index];
+      const data = { ...emptySpecimen(), ...item.data };
+      const enteredSpecimenNo = data.specimenNo.trim();
+      const storedSpecimenNo = enteredSpecimenNo || generateAutomaticSpecimenNo(index);
+      const normalized = storedSpecimenNo.toLowerCase();
+
+      if (existing.has(normalized) || seen.has(normalized)) {
+        duplicates += 1;
+        setImportProgress({ current: index + 1, total: importRows.length });
+        continue;
+      }
+
+      data.specimenNo = storedSpecimenNo;
+      const core = {
+        specimenNo: storedSpecimenNo,
+        speciesId: data.speciesId || "",
+        verifiedId: data.verifiedId || "",
+        dateCollection: toIsoDate(data.dateCollection) || null,
+        dateVerification: toIsoDate(data.dateVerification) || null,
+        family: data.family || "",
+        genus: data.genus || "",
+        species: data.species || "",
+        commonName: data.commonName || "",
+        sampleStatus: data.sampleStatus || "",
+        conservationStatus: data.conservationStatus || "",
+        taxonomicStatus: data.taxonomicStatus || "",
+        createdById: user.$id,
+        createdByName: user.name || user.email,
+        createdByEmail: user.email,
+        dataJson: JSON.stringify(data),
+        photoJson: "{}",
+        searchText: buildSearchText(data, user.name || user.email, user.email),
+      };
+
+      try {
+        await tablesDB.createRow({
+          databaseId: APPWRITE_DATABASE_ID,
+          tableId: APPWRITE_TABLE_ID,
+          rowId: ID.unique(),
+          data: core,
+          permissions: [
+            Permission.read(Role.users()),
+            Permission.update(Role.user(user.$id)),
+            Permission.delete(Role.user(user.$id)),
+          ],
+        });
+        seen.add(normalized);
+        added += 1;
+      } catch (error) {
+        const message = appwriteError(error);
+        if (/unique|duplicate|already exists/i.test(message)) duplicates += 1;
+        else failed += 1;
+      }
+
+      setImportProgress({ current: index + 1, total: importRows.length });
+    }
+
+    const summary = { added, duplicates, failed, total: importRows.length };
+    setImportSummary(summary);
+    await loadRows();
+    showToast({
+      type: failed ? "error" : "success",
+      message: `Excel import finished: ${added} added, ${duplicates} duplicate${duplicates === 1 ? "" : "s"} skipped${failed ? `, ${failed} failed` : ""}.`,
+    });
+    setImportBusy(false);
   };
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
     if (!user) return;
+    if (photoCompressionBusy) {
+      showToast({ type: "error", message: "Please wait for photo compression to finish before saving." });
+      return;
+    }
+
+    const enteredSpecimenNo = formData.specimenNo.trim();
+    const normalizedSpecimenNo = enteredSpecimenNo.toLowerCase();
+    const duplicate = enteredSpecimenNo
+      ? rows.find((row) =>
+          row.$id !== editingRow?.$id
+          && row.specimenNo.trim().toLowerCase() === normalizedSpecimenNo,
+        )
+      : undefined;
+
+    if (duplicate) {
+      showToast({
+        type: "error",
+        message: `Specimen ${duplicate.specimenNo} already exists. Open the existing entry instead of adding a duplicate.`,
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const uploaded: PhotoMap = { ...existingPhotos };
+      const filesToDelete = new Set(removedPhotoIds);
       for (const slot of photoSlots) {
         const file = photoFiles[slot.key];
         if (!file) continue;
+        const previousFileId = uploaded[slot.key];
+        if (previousFileId) filesToDelete.add(previousFileId);
         const result = await storage.createFile({
           bucketId: APPWRITE_BUCKET_ID,
           fileId: ID.unique(),
@@ -274,10 +514,13 @@ export default function Home() {
         uploaded[slot.key] = result.$id;
       }
 
-      const dataJson = JSON.stringify(formData);
-      const searchText = buildSearchText(formData, user.name || user.email, user.email);
+      const generatedSpecimenNo = generateAutomaticSpecimenNo();
+      const storedSpecimenNo = enteredSpecimenNo || generatedSpecimenNo;
+      const savedFormData = { ...formData, specimenNo: storedSpecimenNo };
+      const dataJson = JSON.stringify(savedFormData);
+      const searchText = buildSearchText(savedFormData, user.name || user.email, user.email);
       const core = {
-        specimenNo: formData.specimenNo,
+        specimenNo: storedSpecimenNo,
         speciesId: formData.speciesId || "",
         verifiedId: formData.verifiedId || "",
         dateCollection: toIsoDate(formData.dateCollection) || null,
@@ -286,9 +529,9 @@ export default function Home() {
         genus: formData.genus || "",
         species: formData.species || "",
         commonName: formData.commonName || "",
-        sampleStatus: formData.sampleStatus || "Collected",
-        conservationStatus: formData.conservationStatus || "Not evaluated",
-        taxonomicStatus: formData.taxonomicStatus || "Needs review",
+        sampleStatus: formData.sampleStatus || "",
+        conservationStatus: formData.conservationStatus || "",
+        taxonomicStatus: formData.taxonomicStatus || "",
         createdById: editingRow?.createdById || user.$id,
         createdByName: editingRow?.createdByName || user.name || user.email,
         createdByEmail: editingRow?.createdByEmail || user.email,
@@ -297,6 +540,7 @@ export default function Home() {
         searchText,
       };
 
+      let successMessage: string;
       if (editingRow) {
         await tablesDB.updateRow({
           databaseId: APPWRITE_DATABASE_ID,
@@ -304,7 +548,7 @@ export default function Home() {
           rowId: editingRow.$id,
           data: core,
         });
-        showToast({ type: "success", message: "Specimen record updated." });
+        successMessage = "Every specimen field and photo change was saved.";
       } else {
         await tablesDB.createRow({
           databaseId: APPWRITE_DATABASE_ID,
@@ -317,12 +561,28 @@ export default function Home() {
             Permission.delete(Role.user(user.$id)),
           ],
         });
-        showToast({ type: "success", message: "Specimen added to the registry." });
+        successMessage = "Specimen added to the registry.";
       }
+
+      const deletionResults = await Promise.allSettled(
+        [...filesToDelete].map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+      );
+      if (deletionResults.some((result) => result.status === "rejected")) {
+        successMessage += " The record was saved, but one old photo could not be removed from storage.";
+      }
+
+      showToast({ type: "success", message: successMessage });
       setFormOpen(false);
       await loadRows();
     } catch (error) {
-      showToast({ type: "error", message: `Could not save: ${appwriteError(error)}` });
+      const message = appwriteError(error);
+      const isDuplicate = /unique|duplicate|already exists/i.test(message);
+      showToast({
+        type: "error",
+        message: isDuplicate
+          ? `Specimen ${enteredSpecimenNo || "with this generated ID"} already exists in the registry.`
+          : `Could not save: ${message}`,
+      });
     } finally {
       setSaving(false);
     }
@@ -498,6 +758,7 @@ export default function Home() {
         <button className="brand-mark compact" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><Leaf /><span>AgriSpecimen</span></button>
         <nav className={menuOpen ? "nav-actions open" : "nav-actions"}>
           <button className="ghost-button" onClick={() => document.getElementById("registry")?.scrollIntoView({ behavior: "smooth" })}><BookOpenText /> Registry</button>
+          <button className="ghost-button" onClick={openImportModal}><FileSpreadsheet /> Import Excel</button>
           <button className="primary-button" onClick={openNewForm}><Plus /> Add specimen</button>
           <button className="profile-button" onClick={logout}><span>{(user.name || user.email).slice(0, 1).toUpperCase()}</span><div><strong>{user.name || "Contributor"}</strong><small>{user.email}</small></div><LogOut /></button>
         </nav>
@@ -527,7 +788,7 @@ export default function Home() {
       </section>
 
       <section id="registry" className="registry-section reveal">
-        <div className="section-heading"><div><p className="eyebrow">Specimen catalogue</p><h2>Searchable agricultural collection</h2></div><button className="primary-button" onClick={openNewForm}><Plus /> New record</button></div>
+        <div className="section-heading"><div><p className="eyebrow">Specimen catalogue</p><h2>Searchable agricultural collection</h2></div><div className="section-actions"><button className="ghost-button" onClick={openImportModal}><FileSpreadsheet /> Import Excel</button><button className="primary-button" onClick={openNewForm}><Plus /> New record</button></div></div>
         <div className="glass search-panel">
           <label className="global-search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search specimen number, taxonomy, location, host, collector, status, reference…" />{search && <button onClick={() => setSearch("")}><X /></button>}</label>
           <div className="advanced-filter">
@@ -550,7 +811,7 @@ export default function Home() {
                 <article className="glass specimen-card reveal" key={row.$id}>
                   <button className="card-visual" onClick={() => setDetailsRow(row)} aria-label={`Open ${row.specimenNo}`}>
                     {cover ? <PhotoImage fileId={cover} alt={displayScientificName(data)} /> : <div className="photo-placeholder"><Bug /><span>Optional photo not added</span></div>}
-                    <span className={`status-badge ${row.sampleStatus?.toLowerCase().replace(/\s+/g, "-")}`}>{row.sampleStatus || "Collected"}</span>
+                    <span className={`status-badge ${row.sampleStatus?.toLowerCase().replace(/\s+/g, "-")}`}>{row.sampleStatus || "Unspecified"}</span>
                     <span className="view-icon"><Eye /></span>
                   </button>
                   <div className="card-content">
@@ -570,12 +831,12 @@ export default function Home() {
         )}
       </section>
 
-      <footer><div className="brand-mark compact"><Leaf /><span>AgriSpecimen</span></div><p>A liquid-glass agricultural specimen registry powered by Appwrite, GitHub, and Vercel.</p></footer>
+      <footer><div className="brand-mark compact"><Leaf /><span>AgriSpecimen</span></div><p>powered by Luntian</p></footer>
 
       {formOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <form className="modal-panel specimen-form" onSubmit={handleSave}>
-            <div className="modal-header"><div><p className="eyebrow">{editingRow ? "Update record" : "New collection entry"}</p><h2>{editingRow ? `Edit ${editingRow.specimenNo}` : "Register a specimen"}</h2><p>Only the Specimen No. is required. Photographs are optional.</p></div><button type="button" className="icon-button" onClick={() => setFormOpen(false)}><X /></button></div>
+            <div className="modal-header"><div><p className="eyebrow">{editingRow ? "Update every field" : "New collection entry"}</p><h2>{editingRow ? `Edit ${editingRow.specimenNo}` : "Register a specimen"}</h2><p>{editingRow ? "Every published specimen input can be changed, cleared, or completed later. Photos can also be added, replaced, or removed." : "Every specimen field and photograph is optional. A record ID is generated automatically when Specimen No. is left blank."}</p></div><button type="button" className="icon-button" onClick={() => setFormOpen(false)}><X /></button></div>
             <div className="form-scroll">
               {fieldGroups.map((group) => (
                 <fieldset key={group} className="form-group reveal is-visible">
@@ -589,24 +850,91 @@ export default function Home() {
               ))}
               <fieldset className="form-group reveal is-visible">
                 <legend>Optional specimen photographs</legend>
-                <p className="group-note">Add any available view. You may leave every photo empty and add them later.</p>
+                <p className="group-note">Add any available view. New photos are automatically resized and converted to high-quality WebP before upload, usually saving most of the original file size. After publishing, the original contributor can add, replace, or remove every photograph.</p>
                 <div className="photo-input-grid">
                   {photoSlots.map((slot) => {
                     const newFile = photoFiles[slot.key];
                     const existingId = existingPhotos[slot.key];
+                    const compression = photoCompressionInfo[slot.key];
+                    const isCompressing = Boolean(compressingPhotoSlots[slot.key]);
+                    const savingPercent = compression && compression.originalBytes > 0
+                      ? Math.max(0, Math.round((1 - compression.compressedBytes / compression.originalBytes) * 100))
+                      : 0;
                     return (
-                      <label className="photo-input" key={slot.key}>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFiles((current) => ({ ...current, [slot.key]: event.target.files?.[0] }))} />
-                        {newFile ? <img src={URL.createObjectURL(newFile)} alt={slot.label} /> : existingId ? <PhotoImage fileId={existingId} alt={slot.label} /> : <UploadCloud />}
-                        <span>{slot.label}</span><small>{newFile?.name || (existingId ? "Existing photo—choose a file to replace" : "Optional JPG, PNG, or WebP")}</small>
-                      </label>
+                      <div className="photo-input-wrap" key={slot.key}>
+                        <label className={`photo-input ${isCompressing ? "is-compressing" : ""}`}>
+                          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={isCompressing || saving} onChange={(event) => void selectPhotoForSlot(slot.key, event.target.files?.[0])} />
+                          {isCompressing ? <LoaderCircle className="spin" /> : newFile ? <img src={URL.createObjectURL(newFile)} alt={slot.label} /> : existingId ? <PhotoImage fileId={existingId} alt={slot.label} /> : <UploadCloud />}
+                          <span>{slot.label}</span>
+                          <small>
+                            {isCompressing
+                              ? "Optimizing image before upload…"
+                              : compression
+                                ? compression.compressed
+                                  ? `${formatFileSize(compression.originalBytes)} → ${formatFileSize(compression.compressedBytes)} · ${savingPercent}% smaller`
+                                  : `Already optimized · ${formatFileSize(compression.compressedBytes)}`
+                                : newFile?.name || (existingId ? "Existing photo—choose a file to replace" : "Optional JPG, PNG, or WebP")}
+                          </small>
+                        </label>
+                        {(newFile || existingId) && !isCompressing && <button type="button" className="remove-photo-button" onClick={() => removePhotoSlot(slot.key)}><Trash2 /> Remove photo</button>}
+                      </div>
                     );
                   })}
                 </div>
               </fieldset>
             </div>
-            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setFormOpen(false)}>Cancel</button><button className="primary-button" disabled={saving}>{saving ? <LoaderCircle className="spin" /> : <Check />}{saving ? "Saving record…" : editingRow ? "Save changes" : "Add to registry"}</button></div>
+            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setFormOpen(false)}>Cancel</button><button className="primary-button" disabled={saving || photoCompressionBusy}>{saving || photoCompressionBusy ? <LoaderCircle className="spin" /> : <Check />}{photoCompressionBusy ? "Optimizing photos…" : saving ? "Saving record…" : editingRow ? "Save changes" : "Add to registry"}</button></div>
           </form>
+        </div>
+      )}
+
+      {importOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-panel import-panel">
+            <div className="modal-header">
+              <div><p className="eyebrow">Bulk registry entry</p><h2>Import specimen records from Excel</h2><p>Every imported record is attributed to your account. Duplicate Specimen No. values are skipped, and all imported fields remain editable afterward.</p></div>
+              <button type="button" className="icon-button" onClick={() => setImportOpen(false)} disabled={importBusy}><X /></button>
+            </div>
+            <div className="import-scroll">
+              <label className="excel-dropzone">
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => void analyzeImportFile(event.target.files?.[0])} disabled={importBusy} />
+                {importBusy && !importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}
+                <strong>{importFileName || "Choose an .xlsx workbook"}</strong>
+                <span>Use a normal table with one specimen per row. Blank cells are allowed.</span>
+              </label>
+
+              {importRows.length > 0 && (
+                <>
+                  <div className="import-metrics">
+                    <article><ListChecks /><strong>{importPlan.total}</strong><span>Rows found</span></article>
+                    <article><Check /><strong>{importPlan.importable}</strong><span>Ready to add</span></article>
+                    <article><AlertTriangle /><strong>{importPlan.duplicates}</strong><span>Duplicates skipped</span></article>
+                    <article><Sparkles /><strong>{importPlan.generatedIds}</strong><span>Automatic IDs</span></article>
+                  </div>
+                  <div className="import-preview">
+                    <div className="import-preview-heading"><h3>Preview</h3><span>Showing the first {Math.min(importRows.length, 8)} rows</span></div>
+                    <div className="import-preview-table">
+                      <div className="import-preview-row header"><span>Specimen No.</span><span>Identification</span><span>Collection date</span><span>Source</span></div>
+                      {importRows.slice(0, 8).map((item, index) => (
+                        <div className="import-preview-row" key={`${item.sourceSheet}-${item.sourceRow}-${index}`}><span>{item.data.specimenNo || "Automatic ID"}</span><span><em>{displayScientificName(item.data)}</em></span><span>{item.data.dateCollection || "—"}</span><span>{item.sourceSheet}, row {item.sourceRow}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {importWarnings.length > 0 && <div className="import-warnings"><AlertTriangle /> <div>{importWarnings.map((warning) => <p key={warning}>{warning}</p>)}</div></div>}
+
+              {importProgress.total > 0 && importBusy && (
+                <div className="import-progress"><div><span>Importing records</span><strong>{importProgress.current} / {importProgress.total}</strong></div><progress value={importProgress.current} max={importProgress.total} /></div>
+              )}
+
+              {importSummary && (
+                <div className="import-result"><Check /><div><h3>Import complete</h3><p><strong>{importSummary.added}</strong> added · <strong>{importSummary.duplicates}</strong> duplicates skipped · <strong>{importSummary.failed}</strong> failed</p></div></div>
+              )}
+            </div>
+            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setImportOpen(false)} disabled={importBusy}>{importSummary ? "Close" : "Cancel"}</button><button type="button" className="primary-button" onClick={() => void importExcelRows()} disabled={importBusy || importPlan.importable === 0}>{importBusy && importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}{importBusy && importProgress.total ? "Importing…" : `Import ${importPlan.importable} record${importPlan.importable === 1 ? "" : "s"}`}</button></div>
+          </div>
         </div>
       )}
 
@@ -619,7 +947,7 @@ export default function Home() {
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <div className="modal-panel details-panel">
               <div className="modal-header"><div><p className="eyebrow">{detailsRow.specimenNo}</p><h2><em>{displayScientificName(data)}</em></h2><p>{data.commonName || "Common name not recorded"}</p></div><button className="icon-button" onClick={() => setDetailsRow(null)}><X /></button></div>
-              <div className="details-toolbar"><button onClick={exportJpeg}><FileImage /> JPEG</button><button onClick={exportPdf}><FileText /> PDF</button><button onClick={() => downloadPhotos(detailsRow)}><ArrowDownToLine /> Original photos</button>{canEdit && <button onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit record</button>}</div>
+              <div className="details-toolbar"><button onClick={exportJpeg}><FileImage /> JPEG</button><button onClick={exportPdf}><FileText /> PDF</button><button onClick={() => downloadPhotos(detailsRow)}><ArrowDownToLine /> Original photos</button>{canEdit && <button onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button>}</div>
               <div className="details-scroll">
                 <div ref={exportRef} className="export-sheet">
                   <div className="export-title"><div className="brand-mark compact"><Leaf /><span>AgriSpecimen</span></div><p>{detailsRow.specimenNo}</p><h2><em>{displayScientificName(data)}</em></h2><span>{data.commonName || "Common name not recorded"}</span></div>
@@ -632,7 +960,7 @@ export default function Home() {
                 </div>
                 <section className="status-editor"><div><h3>Update specimen status</h3><p>{canEdit ? "As the contributor, you can toggle this record's current status." : "Only the original contributor can change this record."}</p></div><div className="status-options">{SAMPLE_STATUSES.map((status) => <button key={status} disabled={!canEdit} className={detailsRow.sampleStatus === status ? "active" : ""} onClick={() => quickStatus(detailsRow, status)}>{detailsRow.sampleStatus === status && <Check />}{status}</button>)}</div></section>
               </div>
-              <div className="modal-footer"><button className="ghost-button" onClick={() => setDetailsRow(null)}>Close</button>{canEdit && <><button className="danger-button" onClick={() => deleteRow(detailsRow)}><Trash2 /> Delete</button><button className="primary-button" onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit record</button></>}</div>
+              <div className="modal-footer"><button className="ghost-button" onClick={() => setDetailsRow(null)}>Close</button>{canEdit && <><button className="danger-button" onClick={() => deleteRow(detailsRow)}><Trash2 /> Delete</button><button className="primary-button" onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button></>}</div>
             </div>
           </div>
         );

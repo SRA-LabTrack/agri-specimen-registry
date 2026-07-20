@@ -1,0 +1,18 @@
+EDITABLE PUBLISHED RECORDS UPDATE
+
+Replace these files in your current project:
+- app/page.tsx
+- app/globals.css
+- lib/specimen-fields.ts
+
+What this update does:
+- Every specimen field remains editable after publishing.
+- A field can be changed, completed later, or cleared.
+- Specimen No. can be edited; duplicate numbers are blocked.
+- Clearing Specimen No. assigns a new automatic ID.
+- Every photo slot can be added, replaced, or removed.
+- Creator name/email remain protected audit information and are not specimen inputs.
+- Only the original contributor can edit or delete the record.
+
+No Appwrite setup command is required.
+Run npm run dev, test editing, then commit and push the changed files.
