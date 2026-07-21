@@ -8,6 +8,8 @@ import {
   Camera,
   Check,
   CircleUserRound,
+  Cloud,
+  CloudOff,
   Edit3,
   Eye,
   FileImage,
@@ -22,6 +24,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  RefreshCw,
   Plus,
   Search,
   ShieldCheck,
@@ -32,7 +35,7 @@ import {
   AlertTriangle,
   X,
 } from "lucide-react";
-import { ID, Permission, Query, Role, type Models } from "appwrite";
+import { ID, Permission, Query, Role } from "appwrite";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import {
@@ -56,6 +59,26 @@ import {
 import { parsePhotoMap, parseSpecimenData, type PhotoMap, type SpecimenRow } from "@/lib/types";
 import { parseRegistryWorkbook, type ParsedImportRow } from "@/lib/excel-import";
 import { compressSpecimenImage, formatFileSize, type ImageCompressionResult } from "@/lib/image-compression";
+import {
+  OFFLINE_PHOTO_PREFIX,
+  cachePhoto,
+  cachePhotoFromUrl,
+  cacheRows,
+  cacheUser,
+  clearOfflineAccountData,
+  createOfflinePhotoId,
+  enqueueMutation,
+  getCachedPhoto,
+  getCachedRows,
+  getCachedUser,
+  getPendingMutationCount,
+  getPendingMutations,
+  overlayPendingMutations,
+  removeMutation,
+  type OfflineMutation,
+  type QueuedPhoto,
+  type SessionUser,
+} from "@/lib/offline-store";
 
 const SAMPLE_STATUSES = ["Collected", "In examination", "Awaiting verification", "Verified", "Preserved", "Archived"];
 
@@ -88,6 +111,76 @@ function appwriteError(error: unknown): string {
 
 function safeFilename(value: string): string {
   return value.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "specimen";
+}
+
+type CreatorIdentity = { id: string; name: string; email: string };
+
+function buildRecordCore(data: SpecimenData, creator: CreatorIdentity, photos: PhotoMap) {
+  return {
+    specimenNo: data.specimenNo,
+    speciesId: data.speciesId || "",
+    verifiedId: data.verifiedId || "",
+    dateCollection: toIsoDate(data.dateCollection) || null,
+    dateVerification: toIsoDate(data.dateVerification) || null,
+    family: data.family || "",
+    genus: data.genus || "",
+    species: data.species || "",
+    commonName: data.commonName || "",
+    sampleStatus: data.sampleStatus || "",
+    conservationStatus: data.conservationStatus || "",
+    taxonomicStatus: data.taxonomicStatus || "",
+    createdById: creator.id,
+    createdByName: creator.name,
+    createdByEmail: creator.email,
+    dataJson: JSON.stringify(data),
+    photoJson: JSON.stringify(photos),
+    searchText: buildSearchText(data, creator.name, creator.email),
+  };
+}
+
+function createOfflineSnapshot(
+  existing: SpecimenRow | null,
+  targetId: string,
+  core: ReturnType<typeof buildRecordCore>,
+  status: "pending-create" | "pending-update",
+): SpecimenRow {
+  const now = new Date().toISOString();
+  return {
+    ...(existing || {}),
+    ...core,
+    $id: targetId,
+    $createdAt: existing?.$createdAt || now,
+    $updatedAt: now,
+    $permissions: existing?.$permissions || [],
+    $databaseId: APPWRITE_DATABASE_ID,
+    $tableId: APPWRITE_TABLE_ID,
+    __offlineStatus: status,
+  } as SpecimenRow;
+}
+
+function remotePhotoPreview(fileId: string): string {
+  return String(storage.getFilePreview({
+    bucketId: APPWRITE_BUCKET_ID,
+    fileId,
+    width: 1400,
+    height: 1000,
+    quality: 88,
+  }));
+}
+
+async function warmRegistryPhotoCache(rows: SpecimenRow[]): Promise<void> {
+  const ids = [...new Set(rows.flatMap((row) => Object.values(parsePhotoMap(row)) as string[]))]
+    .filter((id) => id && !id.startsWith(OFFLINE_PHOTO_PREFIX))
+    .slice(0, 150);
+  let cursor = 0;
+  const workers = Array.from({ length: 3 }, async () => {
+    while (cursor < ids.length) {
+      const id = ids[cursor];
+      cursor += 1;
+      await cachePhotoFromUrl(id, remotePhotoPreview(id));
+    }
+  });
+  await Promise.all(workers);
 }
 
 function FieldInput({
@@ -126,12 +219,42 @@ function FieldInput({
 }
 
 function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: string; className?: string }) {
-  const src = String(storage.getFilePreview({ bucketId: APPWRITE_BUCKET_ID, fileId, width: 1400, height: 1000, quality: 88 }));
-  return <img src={src} alt={alt} className={className} crossOrigin="anonymous" />;
+  const isLocal = fileId.startsWith(OFFLINE_PHOTO_PREFIX);
+  const [src, setSrc] = useState(isLocal ? "" : remotePhotoPreview(fileId));
+
+  useEffect(() => {
+    let objectUrl = "";
+    let cancelled = false;
+    const useCached = async () => {
+      const blob = await getCachedPhoto(fileId);
+      if (!blob || cancelled) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
+    };
+
+    if (isLocal || !navigator.onLine) void useCached();
+    else void cachePhotoFromUrl(fileId, remotePhotoPreview(fileId));
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileId, isLocal]);
+
+  if (!src) return <div className="offline-photo-loading"><Camera /><span>Cached photo</span></div>;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      crossOrigin={isLocal ? undefined : "anonymous"}
+      onError={() => { void getCachedPhoto(fileId).then((blob) => { if (blob) setSrc(URL.createObjectURL(blob)); }); }}
+    />
+  );
 }
 
 export default function Home() {
-  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(appwriteConfigured);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authName, setAuthName] = useState("");
@@ -162,7 +285,11 @@ export default function Home() {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState<ImportSummary>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const syncBusyRef = useRef(false);
   const photoCompressionBusy = Object.values(compressingPhotoSlots).some(Boolean);
 
   const showToast = (next: Toast) => {
@@ -170,9 +297,23 @@ export default function Home() {
     window.setTimeout(() => setToast(null), 4200);
   };
 
-  const loadRows = async () => {
-    if (!appwriteConfigured) return;
+  const refreshPendingCount = async (userId: string) => {
+    setPendingCount(await getPendingMutationCount(userId));
+  };
+
+  const loadRows = async (activeUserId = user?.$id, quiet = false) => {
+    if (!appwriteConfigured || !activeUserId) return;
     setLoadingRows(true);
+    const cached = await getCachedRows(activeUserId);
+    const pending = await getPendingMutations(activeUserId);
+    if (cached.length) setRows(overlayPendingMutations(cached, pending));
+    setPendingCount(pending.length);
+
+    if (!navigator.onLine) {
+      setLoadingRows(false);
+      return;
+    }
+
     try {
       const response = await tablesDB.listRows({
         databaseId: APPWRITE_DATABASE_ID,
@@ -181,24 +322,180 @@ export default function Home() {
         total: true,
         ttl: 0,
       });
-      setRows(response.rows as unknown as SpecimenRow[]);
+      const remoteRows = response.rows as unknown as SpecimenRow[];
+      const combined = overlayPendingMutations(remoteRows, pending);
+      setRows(combined);
+      await cacheRows(activeUserId, combined);
+      void warmRegistryPhotoCache(remoteRows);
     } catch (error) {
-      showToast({ type: "error", message: `Could not load specimens: ${appwriteError(error)}` });
+      if (!cached.length && !quiet) {
+        showToast({ type: "error", message: `Could not load specimens: ${appwriteError(error)}` });
+      }
     } finally {
       setLoadingRows(false);
     }
   };
 
+  const syncPendingChanges = async (activeUser = user) => {
+    if (!activeUser || !navigator.onLine || syncBusyRef.current) return;
+    syncBusyRef.current = true;
+    setSyncing(true);
+    let synced = 0;
+    let failed = 0;
+
+    try {
+      const mutations = await getPendingMutations(activeUser.$id);
+      setPendingCount(mutations.length);
+
+      for (const mutation of mutations) {
+        try {
+          if (mutation.kind === "delete") {
+            try {
+              await tablesDB.deleteRow({
+                databaseId: APPWRITE_DATABASE_ID,
+                tableId: APPWRITE_TABLE_ID,
+                rowId: mutation.targetId,
+              });
+            } catch (error) {
+              const code = (error as { code?: number })?.code;
+              if (code !== 404) throw error;
+            }
+          } else {
+            const finalPhotos: PhotoMap = { ...(mutation.photoMap || {}) };
+            for (const [slot, fileId] of Object.entries(finalPhotos) as [string, string][]) {
+              if (!fileId.startsWith(OFFLINE_PHOTO_PREFIX)) continue;
+              const queued = mutation.localPhotos?.[fileId];
+              const blob = await getCachedPhoto(fileId);
+              if (!queued || !blob) throw new Error(`Queued photo for ${slot} is missing from this browser.`);
+              const file = new File([blob], queued.name, { type: queued.type || blob.type || "image/webp" });
+              const uploaded = await storage.createFile({
+                bucketId: APPWRITE_BUCKET_ID,
+                fileId: ID.unique(),
+                file,
+                permissions: [
+                  Permission.read(Role.users()),
+                  Permission.update(Role.user(mutation.creator.id)),
+                  Permission.delete(Role.user(mutation.creator.id)),
+                ],
+              });
+              finalPhotos[slot] = uploaded.$id;
+              await cachePhoto(uploaded.$id, blob);
+            }
+
+            const core = buildRecordCore(
+              mutation.formData || emptySpecimen(),
+              mutation.creator,
+              finalPhotos,
+            );
+
+            if (mutation.kind === "create") {
+              await tablesDB.createRow({
+                databaseId: APPWRITE_DATABASE_ID,
+                tableId: APPWRITE_TABLE_ID,
+                rowId: ID.unique(),
+                data: core,
+                permissions: [
+                  Permission.read(Role.users()),
+                  Permission.update(Role.user(mutation.creator.id)),
+                  Permission.delete(Role.user(mutation.creator.id)),
+                ],
+              });
+            } else {
+              await tablesDB.updateRow({
+                databaseId: APPWRITE_DATABASE_ID,
+                tableId: APPWRITE_TABLE_ID,
+                rowId: mutation.targetId,
+                data: core,
+              });
+            }
+          }
+
+          const remotePhotosToDelete = (mutation.deleteFileIds || [])
+            .filter((id) => id && !id.startsWith(OFFLINE_PHOTO_PREFIX));
+          await Promise.allSettled(
+            remotePhotosToDelete.map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+          );
+          await removeMutation(mutation);
+          synced += 1;
+          setPendingCount(await getPendingMutationCount(activeUser.$id));
+        } catch {
+          failed += 1;
+        }
+      }
+
+      await loadRows(activeUser.$id, true);
+      if (synced > 0) {
+        showToast({
+          type: failed ? "error" : "success",
+          message: failed
+            ? `${synced} offline change${synced === 1 ? "" : "s"} synced; ${failed} still waiting.`
+            : `${synced} offline change${synced === 1 ? "" : "s"} synced to Appwrite.`,
+        });
+      }
+    } finally {
+      await refreshPendingCount(activeUser.$id);
+      setSyncing(false);
+      syncBusyRef.current = false;
+    }
+  };
+
   useEffect(() => {
     if (!appwriteConfigured) return;
-    account.get()
-      .then(async (current) => {
-        setUser(current);
-        await loadRows();
-      })
-      .catch(() => setUser(null))
-      .finally(() => setCheckingSession(false));
+    let cancelled = false;
+
+    const boot = async () => {
+      setIsOnline(navigator.onLine);
+      const cachedUser = await getCachedUser();
+      if (cachedUser && !cancelled) {
+        setUser(cachedUser);
+        const cachedRows = await getCachedRows(cachedUser.$id);
+        const pending = await getPendingMutations(cachedUser.$id);
+        setRows(overlayPendingMutations(cachedRows, pending));
+        setPendingCount(pending.length);
+      }
+
+      if (!navigator.onLine) {
+        setCheckingSession(false);
+        return;
+      }
+
+      try {
+        const current = await account.get();
+        const sessionUser: SessionUser = { $id: current.$id, name: current.name, email: current.email };
+        if (cancelled) return;
+        setUser(sessionUser);
+        await cacheUser(sessionUser);
+        await loadRows(sessionUser.$id, true);
+        await syncPendingChanges(sessionUser);
+      } catch (error) {
+        const code = (error as { code?: number })?.code;
+        // An expired online session must return to the sign-in screen, but the
+        // cached registry and queued changes stay in IndexedDB for that account.
+        if (code === 401 || !cachedUser) setUser(null);
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
+    };
+
+    void boot();
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (user) void syncPendingChanges(user);
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    setIsOnline(navigator.onLine);
+    if (user) void refreshPendingCount(user.$id);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [user?.$id]);
 
   const filteredRows = useMemo(() => {
     const globalNeedle = search.trim().toLowerCase();
@@ -275,6 +572,10 @@ export default function Home() {
 
   const handleAuth = async (event: FormEvent) => {
     event.preventDefault();
+    if (!navigator.onLine) {
+      showToast({ type: "error", message: "An internet connection is required for the first sign-in. After that, this browser can reopen the registry offline." });
+      return;
+    }
     setAuthBusy(true);
     try {
       if (authMode === "register") {
@@ -282,10 +583,13 @@ export default function Home() {
       }
       await account.createEmailPasswordSession({ email: authEmail.trim(), password: authPassword });
       const current = await account.get();
-      setUser(current);
-      await loadRows();
+      const sessionUser: SessionUser = { $id: current.$id, name: current.name, email: current.email };
+      setUser(sessionUser);
+      await cacheUser(sessionUser);
+      await loadRows(sessionUser.$id);
+      await syncPendingChanges(sessionUser);
       setAuthPassword("");
-      showToast({ type: "success", message: authMode === "register" ? "Account created successfully." : "Welcome back." });
+      showToast({ type: "success", message: authMode === "register" ? "Account created and offline copy prepared." : "Welcome back. Offline copy refreshed." });
     } catch (error) {
       showToast({ type: "error", message: appwriteError(error) });
     } finally {
@@ -294,11 +598,19 @@ export default function Home() {
   };
 
   const logout = async () => {
+    if (!user) return;
+    if (pendingCount > 0 && !window.confirm(`You have ${pendingCount} unsynced change${pendingCount === 1 ? "" : "s"}. Logging out will remove them from this browser. Continue?`)) return;
     try {
-      await account.deleteSession({ sessionId: "current" });
+      if (navigator.onLine) await account.deleteSession({ sessionId: "current" });
     } finally {
+      try {
+        await clearOfflineAccountData(user.$id);
+      } catch {
+        // Logging out should still complete even when browser storage cleanup fails.
+      }
       setUser(null);
       setRows([]);
+      setPendingCount(0);
       setMenuOpen(false);
     }
   };
@@ -358,6 +670,10 @@ export default function Home() {
   };
 
   const openImportModal = () => {
+    if (!isOnline) {
+      showToast({ type: "error", message: "Excel bulk import is available online only. Manual specimen additions and edits can still be queued offline." });
+      return;
+    }
     setImportFileName("");
     setImportRows([]);
     setImportWarnings([]);
@@ -413,26 +729,7 @@ export default function Home() {
       }
 
       data.specimenNo = storedSpecimenNo;
-      const core = {
-        specimenNo: storedSpecimenNo,
-        speciesId: data.speciesId || "",
-        verifiedId: data.verifiedId || "",
-        dateCollection: toIsoDate(data.dateCollection) || null,
-        dateVerification: toIsoDate(data.dateVerification) || null,
-        family: data.family || "",
-        genus: data.genus || "",
-        species: data.species || "",
-        commonName: data.commonName || "",
-        sampleStatus: data.sampleStatus || "",
-        conservationStatus: data.conservationStatus || "",
-        taxonomicStatus: data.taxonomicStatus || "",
-        createdById: user.$id,
-        createdByName: user.name || user.email,
-        createdByEmail: user.email,
-        dataJson: JSON.stringify(data),
-        photoJson: "{}",
-        searchText: buildSearchText(data, user.name || user.email, user.email),
-      };
+      const core = buildRecordCore(data, { id: user.$id, name: user.name || user.email, email: user.email }, {});
 
       try {
         await tablesDB.createRow({
@@ -459,12 +756,83 @@ export default function Home() {
 
     const summary = { added, duplicates, failed, total: importRows.length };
     setImportSummary(summary);
-    await loadRows();
+    await loadRows(user.$id);
     showToast({
       type: failed ? "error" : "success",
       message: `Excel import finished: ${added} added, ${duplicates} duplicate${duplicates === 1 ? "" : "s"} skipped${failed ? `, ${failed} failed` : ""}.`,
     });
     setImportBusy(false);
+  };
+
+  const queueCurrentSave = async (enteredSpecimenNo: string) => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const finalPhotos: PhotoMap = { ...existingPhotos };
+      const localPhotos: Record<string, QueuedPhoto> = {};
+      const filesToDelete = new Set(removedPhotoIds);
+
+      for (const slot of photoSlots) {
+        const file = photoFiles[slot.key];
+        if (!file) continue;
+        const previousFileId = finalPhotos[slot.key];
+        if (previousFileId) filesToDelete.add(previousFileId);
+        const localPhotoId = createOfflinePhotoId();
+        await cachePhoto(localPhotoId, file);
+        localPhotos[localPhotoId] = {
+          cacheId: localPhotoId,
+          name: file.name || `${slot.key}.webp`,
+          type: file.type || "image/webp",
+          size: file.size,
+        };
+        finalPhotos[slot.key] = localPhotoId;
+      }
+
+      const storedSpecimenNo = enteredSpecimenNo || generateAutomaticSpecimenNo();
+      const savedFormData = { ...formData, specimenNo: storedSpecimenNo };
+      const creator = {
+        id: editingRow?.createdById || user.$id,
+        name: editingRow?.createdByName || user.name || user.email,
+        email: editingRow?.createdByEmail || user.email,
+      };
+      const targetId = editingRow?.$id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const status = editingRow ? "pending-update" : "pending-create";
+      const core = buildRecordCore(savedFormData, creator, finalPhotos);
+      const snapshot = createOfflineSnapshot(editingRow, targetId, core, status);
+      const mutation: OfflineMutation = {
+        id: `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        userId: user.$id,
+        kind: editingRow ? "update" : "create",
+        targetId,
+        queuedAt: new Date().toISOString(),
+        creator,
+        formData: savedFormData,
+        photoMap: finalPhotos,
+        localPhotos,
+        deleteFileIds: [...filesToDelete],
+        rowSnapshot: snapshot,
+      };
+
+      await enqueueMutation(mutation);
+      const nextRows = editingRow
+        ? rows.map((row) => row.$id === editingRow.$id ? snapshot : row)
+        : [snapshot, ...rows];
+      setRows(nextRows);
+      await cacheRows(user.$id, nextRows);
+      await refreshPendingCount(user.$id);
+      setFormOpen(false);
+      showToast({
+        type: "success",
+        message: isOnline
+          ? "Change queued and syncing to Appwrite."
+          : "Saved on this device. It will sync automatically when internet returns.",
+      });
+      if (isOnline) void syncPendingChanges(user);
+    } catch (error) {
+      showToast({ type: "error", message: `Could not queue offline change: ${appwriteError(error)}` });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async (event: FormEvent) => {
@@ -492,6 +860,11 @@ export default function Home() {
       return;
     }
 
+    if (!isOnline || editingRow?.__offlineStatus) {
+      await queueCurrentSave(enteredSpecimenNo);
+      return;
+    }
+
     setSaving(true);
     try {
       const uploaded: PhotoMap = { ...existingPhotos };
@@ -512,33 +885,18 @@ export default function Home() {
           ],
         });
         uploaded[slot.key] = result.$id;
+        await cachePhoto(result.$id, file);
       }
 
       const generatedSpecimenNo = generateAutomaticSpecimenNo();
       const storedSpecimenNo = enteredSpecimenNo || generatedSpecimenNo;
       const savedFormData = { ...formData, specimenNo: storedSpecimenNo };
-      const dataJson = JSON.stringify(savedFormData);
-      const searchText = buildSearchText(savedFormData, user.name || user.email, user.email);
-      const core = {
-        specimenNo: storedSpecimenNo,
-        speciesId: formData.speciesId || "",
-        verifiedId: formData.verifiedId || "",
-        dateCollection: toIsoDate(formData.dateCollection) || null,
-        dateVerification: toIsoDate(formData.dateVerification) || null,
-        family: formData.family || "",
-        genus: formData.genus || "",
-        species: formData.species || "",
-        commonName: formData.commonName || "",
-        sampleStatus: formData.sampleStatus || "",
-        conservationStatus: formData.conservationStatus || "",
-        taxonomicStatus: formData.taxonomicStatus || "",
-        createdById: editingRow?.createdById || user.$id,
-        createdByName: editingRow?.createdByName || user.name || user.email,
-        createdByEmail: editingRow?.createdByEmail || user.email,
-        dataJson,
-        photoJson: JSON.stringify(uploaded),
-        searchText,
+      const creator = {
+        id: editingRow?.createdById || user.$id,
+        name: editingRow?.createdByName || user.name || user.email,
+        email: editingRow?.createdByEmail || user.email,
       };
+      const core = buildRecordCore(savedFormData, creator, uploaded);
 
       let successMessage: string;
       if (editingRow) {
@@ -573,7 +931,7 @@ export default function Home() {
 
       showToast({ type: "success", message: successMessage });
       setFormOpen(false);
-      await loadRows();
+      await loadRows(user.$id);
     } catch (error) {
       const message = appwriteError(error);
       const isDuplicate = /unique|duplicate|already exists/i.test(message);
@@ -591,6 +949,37 @@ export default function Home() {
   const quickStatus = async (row: SpecimenRow, status: string) => {
     if (!user || row.createdById !== user.$id) return;
     const data = { ...parseSpecimenData(row), sampleStatus: status };
+    const creator = { id: row.createdById, name: row.createdByName, email: row.createdByEmail };
+
+    if (!isOnline || row.__offlineStatus) {
+      try {
+        const core = buildRecordCore(data, creator, parsePhotoMap(row));
+        const snapshot = createOfflineSnapshot(row, row.$id, core, row.__offlineStatus || "pending-update");
+        const mutation: OfflineMutation = {
+          id: `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          userId: user.$id,
+          kind: "update",
+          targetId: row.$id,
+          queuedAt: new Date().toISOString(),
+          creator,
+          formData: data,
+          photoMap: parsePhotoMap(row),
+          rowSnapshot: snapshot,
+        };
+        await enqueueMutation(mutation);
+        const nextRows = rows.map((item) => item.$id === row.$id ? snapshot : item);
+        setRows(nextRows);
+        await cacheRows(user.$id, nextRows);
+        await refreshPendingCount(user.$id);
+        if (detailsRow?.$id === row.$id) setDetailsRow(snapshot);
+        showToast({ type: "success", message: isOnline ? "Status queued for sync." : `Status saved offline as ${status}.` });
+        if (isOnline) void syncPendingChanges(user);
+      } catch (error) {
+        showToast({ type: "error", message: appwriteError(error) });
+      }
+      return;
+    }
+
     try {
       await tablesDB.updateRow({
         databaseId: APPWRITE_DATABASE_ID,
@@ -602,7 +991,9 @@ export default function Home() {
           searchText: buildSearchText(data, row.createdByName, row.createdByEmail),
         },
       });
-      setRows((current) => current.map((item) => item.$id === row.$id ? { ...item, sampleStatus: status, dataJson: JSON.stringify(data) } : item));
+      const nextRows = rows.map((item) => item.$id === row.$id ? { ...item, sampleStatus: status, dataJson: JSON.stringify(data), $updatedAt: new Date().toISOString() } : item);
+      setRows(nextRows);
+      await cacheRows(user.$id, nextRows);
       if (detailsRow?.$id === row.$id) setDetailsRow({ ...detailsRow, sampleStatus: status, dataJson: JSON.stringify(data) });
       showToast({ type: "success", message: `Status changed to ${status}.` });
     } catch (error) {
@@ -612,12 +1003,45 @@ export default function Home() {
 
   const deleteRow = async (row: SpecimenRow) => {
     if (!user || row.createdById !== user.$id) return;
-    if (!window.confirm(`Delete specimen ${row.specimenNo}? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete specimen ${row.specimenNo}? This cannot be undone after synchronization.`)) return;
+    const photoIds = Object.values(parsePhotoMap(row)) as string[];
+
+    if (!isOnline || row.__offlineStatus) {
+      try {
+        await enqueueMutation({
+          id: `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          userId: user.$id,
+          kind: "delete",
+          targetId: row.$id,
+          queuedAt: new Date().toISOString(),
+          creator: { id: row.createdById, name: row.createdByName, email: row.createdByEmail },
+          deleteFileIds: photoIds,
+        });
+        const nextRows = rows.filter((item) => item.$id !== row.$id);
+        setRows(nextRows);
+        await cacheRows(user.$id, nextRows);
+        await refreshPendingCount(user.$id);
+        setDetailsRow(null);
+        showToast({ type: "success", message: isOnline ? "Deletion queued for sync." : "Deletion saved offline and will sync automatically." });
+        if (isOnline) void syncPendingChanges(user);
+      } catch (error) {
+        showToast({ type: "error", message: appwriteError(error) });
+      }
+      return;
+    }
+
     try {
       await tablesDB.deleteRow({ databaseId: APPWRITE_DATABASE_ID, tableId: APPWRITE_TABLE_ID, rowId: row.$id });
-      setRows((current) => current.filter((item) => item.$id !== row.$id));
+      await Promise.allSettled(
+        photoIds
+          .filter((fileId) => !fileId.startsWith(OFFLINE_PHOTO_PREFIX))
+          .map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+      );
+      const nextRows = rows.filter((item) => item.$id !== row.$id);
+      setRows(nextRows);
+      await cacheRows(user.$id, nextRows);
       setDetailsRow(null);
-      showToast({ type: "success", message: "Specimen record deleted." });
+      showToast({ type: "success", message: "Specimen record and its photographs were deleted." });
     } catch (error) {
       showToast({ type: "error", message: appwriteError(error) });
     }
@@ -675,21 +1099,36 @@ export default function Home() {
     }
   };
 
-  const downloadPhotos = (row: SpecimenRow) => {
-    const photos = Object.entries(parsePhotoMap(row));
+  const downloadPhotos = async (row: SpecimenRow) => {
+    const photos = Object.entries(parsePhotoMap(row)) as [string, string][];
     if (!photos.length) {
       showToast({ type: "error", message: "This record has no uploaded photographs." });
       return;
     }
-    photos.forEach(([slot, fileId], index) => {
-      window.setTimeout(() => {
-        const anchor = document.createElement("a");
+
+    let unavailable = 0;
+    for (const [slot, fileId] of photos) {
+      const cached = await getCachedPhoto(fileId);
+      const anchor = document.createElement("a");
+      anchor.download = `${safeFilename(row.specimenNo)}-${slot}`;
+      if (cached) {
+        const objectUrl = URL.createObjectURL(cached);
+        anchor.href = objectUrl;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      } else if (navigator.onLine && !fileId.startsWith(OFFLINE_PHOTO_PREFIX)) {
         anchor.href = String(storage.getFileDownload({ bucketId: APPWRITE_BUCKET_ID, fileId }));
-        anchor.download = `${safeFilename(row.specimenNo)}-${slot}`;
         anchor.target = "_blank";
         anchor.click();
-      }, index * 250);
-    });
+      } else {
+        unavailable += 1;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+    }
+
+    if (unavailable) {
+      showToast({ type: "error", message: `${unavailable} photo${unavailable === 1 ? " is" : "s are"} not available in the offline cache yet.` });
+    }
   };
 
   if (checkingSession) {
@@ -734,6 +1173,7 @@ export default function Home() {
             <FlaskConical />
             <div><h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2><p>No admin role—every contributor uses a standard account.</p></div>
           </div>
+          {!isOnline && <div className="offline-auth-notice"><CloudOff /><span>Offline. A first-time sign-in or account creation requires internet.</span></div>}
           <form onSubmit={handleAuth} className="auth-form">
             {authMode === "register" && <label>Full name<input value={authName} onChange={(e) => setAuthName(e.target.value)} required placeholder="Your complete name" /></label>}
             <label>Email address<input type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required placeholder="name@example.com" /></label>
@@ -770,6 +1210,15 @@ export default function Home() {
           <button className="ghost-button" onClick={() => document.getElementById("registry")?.scrollIntoView({ behavior: "smooth" })}><BookOpenText /> Registry</button>
           <button className="ghost-button" onClick={openImportModal}><FileSpreadsheet /> Import Excel</button>
           <button className="primary-button" onClick={openNewForm}><Plus /> Add specimen</button>
+          <button
+            className={`sync-chip ${isOnline ? "online" : "offline"}`}
+            onClick={() => { if (isOnline && user) void syncPendingChanges(user); }}
+            disabled={!isOnline || syncing}
+            title={isOnline ? "Sync pending offline changes" : "Changes are stored on this device until internet returns"}
+          >
+            {syncing ? <LoaderCircle className="spin" /> : isOnline ? <Cloud /> : <CloudOff />}
+            <span><strong>{syncing ? "Syncing" : isOnline ? pendingCount ? `${pendingCount} pending` : "Online" : "Offline"}</strong><small>{isOnline ? pendingCount ? "Tap to sync" : "Offline copy ready" : `${pendingCount} waiting`}</small></span>
+          </button>
           <button className="profile-button" onClick={logout}><span>{(user.name || user.email).slice(0, 1).toUpperCase()}</span><div><strong>{user.name || "Contributor"}</strong><small>{user.email}</small></div><LogOut /></button>
         </nav>
         <button className="menu-button" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
@@ -808,7 +1257,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="result-line"><span>{filteredRows.length} record{filteredRows.length === 1 ? "" : "s"}</span>{loadingRows && <span><LoaderCircle className="spin" /> Refreshing</span>}</div>
+        <div className="result-line"><span>{filteredRows.length} record{filteredRows.length === 1 ? "" : "s"}</span><div>{!isOnline && <span className="offline-copy-label"><CloudOff /> Offline copy</span>}{pendingCount > 0 && <span className="pending-copy-label"><RefreshCw /> {pendingCount} waiting to sync</span>}{loadingRows && <span><LoaderCircle className="spin" /> Refreshing</span>}</div></div>
 
         {filteredRows.length ? (
           <div className="specimen-grid">
@@ -822,6 +1271,7 @@ export default function Home() {
                   <button className="card-visual" onClick={() => setDetailsRow(row)} aria-label={`Open ${row.specimenNo}`}>
                     {cover ? <PhotoImage fileId={cover} alt={displayScientificName(data)} /> : <div className="photo-placeholder"><Bug /><span>Optional photo not added</span></div>}
                     <span className={`status-badge ${row.sampleStatus?.toLowerCase().replace(/\s+/g, "-")}`}>{row.sampleStatus || "Unspecified"}</span>
+                    {row.__offlineStatus && <span className="pending-badge"><RefreshCw /> Pending sync</span>}
                     <span className="view-icon"><Eye /></span>
                   </button>
                   <div className="card-content">
@@ -847,6 +1297,7 @@ export default function Home() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <form className="modal-panel specimen-form" onSubmit={handleSave}>
             <div className="modal-header"><div><p className="eyebrow">{editingRow ? "Update every field" : "New collection entry"}</p><h2>{editingRow ? `Edit ${editingRow.specimenNo}` : "Register a specimen"}</h2><p>{editingRow ? "Every published specimen input can be changed, cleared, or completed later. Photos can also be added, replaced, or removed." : "Every specimen field and photograph is optional. A record ID is generated automatically when Specimen No. is left blank."}</p></div><button type="button" className="icon-button" onClick={() => setFormOpen(false)}><X /></button></div>
+            {!isOnline && <div className="offline-form-banner"><CloudOff /><span>This record will be saved on this device and synchronized automatically when internet returns.</span></div>}
             <div className="form-scroll">
               {fieldGroups.map((group) => (
                 <fieldset key={group} className="form-group reveal is-visible">
@@ -957,7 +1408,7 @@ export default function Home() {
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <div className="modal-panel details-panel">
               <div className="modal-header"><div><p className="eyebrow">{detailsRow.specimenNo}</p><h2><em>{displayScientificName(data)}</em></h2><p>{data.commonName || "Common name not recorded"}</p></div><button className="icon-button" onClick={() => setDetailsRow(null)}><X /></button></div>
-              <div className="details-toolbar"><button onClick={exportJpeg}><FileImage /> JPEG</button><button onClick={exportPdf}><FileText /> PDF</button><button onClick={() => downloadPhotos(detailsRow)}><ArrowDownToLine /> Original photos</button>{canEdit && <button onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button>}</div>
+              <div className="details-toolbar"><button onClick={exportJpeg}><FileImage /> JPEG</button><button onClick={exportPdf}><FileText /> PDF</button><button onClick={() => void downloadPhotos(detailsRow)}><ArrowDownToLine /> Original photos</button>{canEdit && <button onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button>}</div>
               <div className="details-scroll">
                 <div ref={exportRef} className="export-sheet">
                   <div className="export-title"><div className="brand-mark compact"><Leaf /><span>AgriSpecimen</span></div><p>{detailsRow.specimenNo}</p><h2><em>{displayScientificName(data)}</em></h2><span>{data.commonName || "Common name not recorded"}</span></div>

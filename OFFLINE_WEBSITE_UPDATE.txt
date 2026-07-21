@@ -1,0 +1,40 @@
+AGRISPECIMEN OFFLINE WEBSITE UPDATE
+===================================
+
+This update adds browser-based offline operation to the AgriSpecimen website.
+It does not create a separate Android or iOS application.
+
+WHAT WORKS OFFLINE AFTER ONE SUCCESSFUL ONLINE SIGN-IN
+- Reopen the website and browse the cached registry.
+- Search and filter all cached specimen fields.
+- Open cached specimen details without opening every entry beforehand.
+- View photographs that were automatically prepared in the browser cache.
+- Add a specimen manually.
+- Edit every field of an existing specimen.
+- Add, replace, or remove compressed photographs.
+- Change specimen status.
+- Delete a specimen.
+- Queue changes and synchronize them automatically when internet returns.
+
+ONLINE-ONLY ACTION
+- Excel bulk import remains online-only to avoid silently queuing hundreds of writes.
+
+ECONOMY / SAFETY LIMITS
+- Up to 500 registry rows are cached per signed-in account.
+- Up to 150 specimen photo previews are prepared automatically.
+- Remote photo cache is trimmed around 75 MB.
+- Offline queue is limited to 40 changes and 24 MB of compressed queued photos.
+- Deleted records also delete their stored Appwrite photos after synchronization.
+
+FILES ADDED
+- lib/offline-store.ts
+- app/service-worker-register.tsx
+- public/sw.js
+
+FILES UPDATED
+- app/page.tsx
+- app/globals.css
+- app/layout.tsx
+- lib/types.ts
+
+No Appwrite database setup or API key change is required.

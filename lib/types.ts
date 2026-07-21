@@ -22,6 +22,7 @@ export type SpecimenRow = Models.Row & {
   dataJson: string;
   photoJson?: string;
   searchText: string;
+  __offlineStatus?: "pending-create" | "pending-update";
 };
 
 export function parseSpecimenData(row: SpecimenRow): SpecimenData {
