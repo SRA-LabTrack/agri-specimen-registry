@@ -81,6 +81,11 @@ img { display: block; max-width: 100%; }
 .topbar-brand-copy { display: grid; gap: 3px; line-height: 1; }
 .topbar-brand-copy strong { font-size: 1.05rem; font-weight: 850; letter-spacing: -.03em; }
 .topbar-brand-copy small { color: var(--leaf); font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .82; }
+.auth-brand { align-items: flex-start; margin-bottom: 4px; }
+.auth-brand > svg { margin-top: 1px; }
+.auth-brand .topbar-brand-copy { gap: 5px; }
+.auth-brand .topbar-brand-copy strong { font-size: 1.08rem; }
+.auth-brand .topbar-brand-copy small { font-size: .6rem; }
 .eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--leaf); font-size: .76rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 
 .primary-button, .ghost-button, .danger-button {

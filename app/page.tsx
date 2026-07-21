@@ -1154,7 +1154,13 @@ export default function Home() {
         <div className="field-glow field-glow-one" />
         <div className="field-glow field-glow-two" />
         <section className="auth-intro reveal is-visible">
-          <div className="brand-mark"><Leaf /><span>AgriSpecimen</span></div>
+          <div className="brand-mark auth-brand">
+            <Leaf />
+            <span className="topbar-brand-copy">
+              <strong>AgriSpecimen</strong>
+              <small>Powered by Luntian</small>
+            </span>
+          </div>
           <p className="eyebrow">Agricultural biodiversity registry</p>
           <h1>Preserve every field discovery with clarity.</h1>
           <p>Record specimen taxonomy, collection data, verification history, photographs, ecological relationships, and contributor identity in one searchable place.</p>
