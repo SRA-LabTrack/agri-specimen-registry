@@ -1272,6 +1272,8 @@ export default function Home() {
               const photos = parsePhotoMap(row);
               const cover = photos.front || photos.dorsal || photos.side || Object.values(photos)[0];
               const canEdit = row.createdById === user.$id;
+              const collectorName = data.collectorsName?.trim() || "Collector not recorded";
+              const collectorInitial = data.collectorsName?.trim().slice(0, 1).toUpperCase() || "C";
               return (
                 <article className="glass specimen-card reveal" key={row.$id}>
                   <button className="card-visual" onClick={() => setDetailsRow(row)} aria-label={`Open ${row.specimenNo}`}>
@@ -1285,7 +1287,7 @@ export default function Home() {
                     <h3><em>{displayScientificName(data)}</em></h3>
                     <p className="common-name">{data.commonName || "Common name not recorded"}</p>
                     <div className="mini-details"><span><Leaf />{data.family || "Family unassigned"}</span><span><MapPin />{[data.locality, data.province, data.country].filter(Boolean).join(", ") || "Location not recorded"}</span></div>
-                    <div className="contributor"><div>{row.createdByName.slice(0, 1).toUpperCase()}</div><span>Entered by <strong>{row.createdByName}</strong><small>{formatDate(row.$createdAt)}</small></span></div>
+                    <div className="contributor"><div>{collectorInitial}</div><span>Collector <strong>{collectorName}</strong></span></div>
                     <div className="card-actions"><button onClick={() => setDetailsRow(row)}><Eye /> Details</button>{canEdit && <button onClick={() => openEditForm(row)}><Edit3 /> Edit</button>}</div>
                   </div>
                 </article>
