@@ -1,4 +1,4 @@
-const VERSION = "agrispecimen-isolates-complete-v5";
+const VERSION = "agrispecimen-strict-excel-image-row-v7";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

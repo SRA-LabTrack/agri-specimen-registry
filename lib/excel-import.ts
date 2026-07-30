@@ -20,6 +20,7 @@ type WorkbookSheet = {
 export type ParsedImportPhoto = {
   slotKey: string;
   file: File;
+  sourceRow: number;
   sourceColumn: number;
   sourceName: string;
 };
@@ -358,22 +359,46 @@ function applyCoordinates(value: string, data: SpecimenData) {
   }
 }
 
-function photosForRow(images: WorksheetImage[], rowIndex: number, headers: string[]): ParsedImportPhoto[] {
-  const rowImages = images.filter((image) => image.rowIndex === rowIndex);
+function photosForRow(
+  images: WorksheetImage[],
+  rowIndex: number,
+  headers: string[],
+): ParsedImportPhoto[] {
+  const rowImages = images
+    .filter((image) => image.rowIndex === rowIndex)
+    .sort((left, right) =>
+      left.columnIndex - right.columnIndex
+      || left.sourcePath.localeCompare(right.sourcePath),
+    );
+
   const usedSlots = new Set<string>();
   const parsed: ParsedImportPhoto[] = [];
 
   for (const image of rowImages) {
     const header = headers[image.columnIndex] || "";
     let slotKey = photoHeaderAliases[normalizeHeader(header)] || "front";
+
     if (usedSlots.has(slotKey)) {
       slotKey = photoSlots.find((slot) => !usedSlots.has(slot.key))?.key || "other";
     }
+
     if (usedSlots.has(slotKey)) continue;
     usedSlots.add(slotKey);
+
+    const sourceFilename = baseName(image.sourcePath);
+    const rowTaggedFile = new File(
+      [image.file],
+      `excel-row-${rowIndex + 1}-${sourceFilename}`,
+      {
+        type: image.file.type,
+        lastModified: image.file.lastModified,
+      },
+    );
+
     parsed.push({
       slotKey,
-      file: image.file,
+      file: rowTaggedFile,
+      sourceRow: rowIndex + 1,
       sourceColumn: image.columnIndex + 1,
       sourceName: image.sourcePath,
     });

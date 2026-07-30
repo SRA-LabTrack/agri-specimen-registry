@@ -732,6 +732,7 @@ export default function Home() {
     let updated = 0;
     let images = 0;
     let failed = 0;
+    const failedDetails: string[] = [];
 
     for (let index = 0; index < importRows.length; index += 1) {
       const item = importRows[index];
@@ -760,7 +761,11 @@ export default function Home() {
         : { ...emptySpecimen(), ...item.data };
       importedData.specimenNo = storedSpecimenNo;
       const creator = existingRow
-        ? { id: existingRow.createdById, name: existingRow.createdByName, email: existingRow.createdByEmail }
+        ? {
+            id: existingRow.createdById || user.$id,
+            name: existingRow.createdByName || user.name || user.email,
+            email: existingRow.createdByEmail || user.email,
+          }
         : { id: user.$id, name: user.name || user.email, email: user.email };
       const finalPhotos: PhotoMap = existingRow ? { ...parsePhotoMap(existingRow) } : {};
       const oldPhotosToDelete = new Set<string>();
@@ -769,7 +774,22 @@ export default function Home() {
 
       try {
         for (const embeddedPhoto of item.photos) {
-          const optimized = await compressSpecimenImage(embeddedPhoto.file);
+          if (embeddedPhoto.sourceRow !== item.sourceRow) {
+            throw new Error(
+              `Embedded image row mismatch: specimen ${storedSpecimenNo} is on Excel row ${item.sourceRow}, but the image is anchored to row ${embeddedPhoto.sourceRow}.`,
+            );
+          }
+
+          const sourceExtension = embeddedPhoto.file.name.match(/\.[a-z0-9]+$/i)?.[0] || "";
+          const traceableSource = new File(
+            [embeddedPhoto.file],
+            `${safeFilename(storedSpecimenNo)}-excel-row-${item.sourceRow}-${embeddedPhoto.slotKey}${sourceExtension}`,
+            {
+              type: embeddedPhoto.file.type,
+              lastModified: embeddedPhoto.file.lastModified,
+            },
+          );
+          const optimized = await compressSpecimenImage(traceableSource);
           const previousFileId = finalPhotos[embeddedPhoto.slotKey];
           const uploaded = await storage.createFile({
             bucketId: APPWRITE_BUCKET_ID,
@@ -792,7 +812,6 @@ export default function Home() {
             tableId: APPWRITE_TABLE_ID,
             rowId: existingRow.$id,
             data: core,
-            permissions: sharedRowPermissions(creator.id),
           });
           savedRow = response as unknown as SpecimenRow;
           updated += 1;
@@ -813,8 +832,22 @@ export default function Home() {
         await Promise.allSettled(
           [...oldPhotosToDelete].map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
         );
-      } catch {
+      } catch (error) {
         failed += 1;
+        const reason = appwriteError(error);
+        failedDetails.push(`${storedSpecimenNo} (Excel row ${item.sourceRow}): ${reason}`);
+        console.error("Excel import row failed", {
+          specimenNo: storedSpecimenNo,
+          sourceSheet: item.sourceSheet,
+          sourceRow: item.sourceRow,
+          photos: item.photos.map((photo) => ({
+            sourceRow: photo.sourceRow,
+            sourceColumn: photo.sourceColumn,
+            sourceName: photo.sourceName,
+            slotKey: photo.slotKey,
+          })),
+          error,
+        });
         await Promise.allSettled(
           uploadedThisRow.map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
         );
@@ -828,7 +861,7 @@ export default function Home() {
     await loadRows(user.$id);
     showToast({
       type: failed ? "error" : "success",
-      message: `Excel import finished: ${added} added, ${updated} updated, ${images} embedded image${images === 1 ? "" : "s"} optimized${failed ? `, ${failed} failed` : ""}.`,
+      message: `Excel import finished: ${added} added, ${updated} updated, ${images} embedded image${images === 1 ? "" : "s"} optimized${failed ? `, ${failed} failed. ${failedDetails.join(" | ")}` : "."}`,
     });
     setImportBusy(false);
   };
