@@ -1,4 +1,4 @@
-const VERSION = "agrispecimen-electron-sdk-photo-v4";
+const VERSION = "agriregistry-branding-splash-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

@@ -1358,11 +1358,13 @@ export default function Home() {
         <div className="field-glow field-glow-one" />
         <div className="field-glow field-glow-two" />
         <section className="auth-intro reveal is-visible">
-          <div className="brand-mark auth-brand">
-            <Leaf />
-            <span className="topbar-brand-copy">
-              <strong>AgriSpecimen</strong>
-              <small>Powered by Luntian</small>
+          <div className="brand-mark auth-brand agriregistry-auth-brand">
+            <span className="agriregistry-logo-surface">
+              <img
+                src="/agriregistry-logo.png"
+                alt="AgriSpecimen Registry, powered by Luntian"
+                className="agriregistry-logo agriregistry-auth-logo"
+              />
             </span>
           </div>
           <p className="eyebrow">Agricultural biodiversity registry</p>
@@ -1406,14 +1408,16 @@ export default function Home() {
       <div className="field-glow field-glow-two" />
       <header className="glass topbar">
         <button
-          className="brand-mark compact topbar-brand"
+          className="brand-mark compact topbar-brand agriregistry-topbar-brand"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          aria-label="AgriSpecimen — Powered by Luntian"
+          aria-label="AgriRegistry, powered by Luntian"
         >
-          <Leaf />
-          <span className="topbar-brand-copy">
-            <strong>AgriSpecimen</strong>
-            <small>Powered by Luntian</small>
+          <span className="agriregistry-logo-surface agriregistry-logo-surface-compact">
+            <img
+              src="/agriregistry-logo.png"
+              alt=""
+              className="agriregistry-logo agriregistry-topbar-logo"
+            />
           </span>
         </button>
         <nav className={menuOpen ? "nav-actions open" : "nav-actions"}>
@@ -1503,7 +1507,15 @@ export default function Home() {
         )}
       </section>
 
-      <footer><div className="brand-mark compact"><Leaf /><span>AgriSpecimen</span></div><p>powered by Luntian</p></footer>
+      <footer className="agriregistry-footer">
+        <span className="agriregistry-logo-surface agriregistry-footer-logo-surface">
+          <img
+            src="/agriregistry-logo.png"
+            alt="AgriSpecimen Registry, powered by Luntian"
+            className="agriregistry-logo agriregistry-footer-logo"
+          />
+        </span>
+      </footer>
 
       {formOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

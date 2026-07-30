@@ -1,16 +1,34 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
+import BrandSplash from "./brand-splash";
 import ServiceWorkerRegister from "./service-worker-register";
 
 export const metadata: Metadata = {
-  title: "AgriSpecimen Registry",
-  description: "Agricultural specimen records, taxonomy, photographs, and verification history.",
+  title: {
+    default: "AgriRegistry",
+    template: "%s | AgriRegistry",
+  },
+  description: "A searchable agricultural registry for microbes, isolates, invertebrates, specimens, photographs, and verification history.",
+  applicationName: "AgriRegistry",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/agriregistry-icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/agriregistry-icon.png",
+  },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body><ServiceWorkerRegister />{children}</body>
+      <body>
+        <ServiceWorkerRegister />
+        <BrandSplash />
+        {children}
+      </body>
     </html>
   );
 }

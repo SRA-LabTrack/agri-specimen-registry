@@ -8,10 +8,16 @@ const APP_URL =
 const APP_ORIGIN = new URL(APP_URL).origin;
 const PARTITION = "persist:agrispecimen-registry";
 const APP_ID = "com.luntian.agrispecimen";
+const ICON_PATH = path.join(__dirname, "assets", "agriregistry-icon.ico");
+const SPLASH_PATH = path.join(__dirname, "splash.html");
+const MINIMUM_SPLASH_TIME_MS = 1800;
 
 let mainWindow = null;
+let splashWindow = null;
 let loadingFallback = false;
+let splashStartedAt = 0;
 
+app.setName("AgriRegistry");
 app.setAppUserModelId(APP_ID);
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -26,6 +32,60 @@ function isTrustedAppUrl(value) {
   } catch {
     return false;
   }
+}
+
+function createSplashWindow() {
+  splashStartedAt = Date.now();
+
+  splashWindow = new BrowserWindow({
+    width: 760,
+    height: 470,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    show: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    center: true,
+    icon: ICON_PATH,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  splashWindow.setIgnoreMouseEvents(true);
+
+  splashWindow.once("ready-to-show", () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.show();
+    }
+  });
+
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+
+  void splashWindow.loadFile(SPLASH_PATH);
+}
+
+function revealMainWindow() {
+  const elapsed = Date.now() - splashStartedAt;
+  const remaining = Math.max(0, MINIMUM_SPLASH_TIME_MS - elapsed);
+
+  setTimeout(() => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, remaining);
 }
 
 async function showOfflineFallback(window) {
@@ -73,12 +133,13 @@ function createWindow() {
   );
 
   mainWindow = new BrowserWindow({
-    title: "AgriSpecimen Registry",
+    title: "AgriRegistry",
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 680,
     show: false,
+    icon: ICON_PATH,
     backgroundColor: "#edf3ea",
     autoHideMenuBar: true,
     webPreferences: {
@@ -111,7 +172,11 @@ function createWindow() {
   mainWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, _description, validatedUrl, isMainFrame) => {
-      if (!isMainFrame || errorCode === -3 || !isTrustedAppUrl(validatedUrl)) {
+      if (
+        !isMainFrame ||
+        errorCode === -3 ||
+        !isTrustedAppUrl(validatedUrl)
+      ) {
         return;
       }
 
@@ -123,11 +188,7 @@ function createWindow() {
     },
   );
 
-  mainWindow.once("ready-to-show", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-    }
-  });
+  mainWindow.once("ready-to-show", revealMainWindow);
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -145,10 +206,12 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(() => {
+  createSplashWindow();
   createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
+      createSplashWindow();
       createWindow();
     }
   });

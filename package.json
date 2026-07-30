@@ -37,7 +37,7 @@
   "main": "electron/main.cjs",
   "build": {
     "appId": "com.luntian.agrispecimen",
-    "productName": "AgriSpecimen Registry",
+    "productName": "AgriRegistry",
     "asar": true,
     "compression": "maximum",
     "directories": {
@@ -56,15 +56,19 @@
           ]
         }
       ],
-      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+      "artifactName": "AgriRegistry-Setup-${version}-${arch}.${ext}",
+      "icon": "electron/assets/agriregistry-icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "AgriSpecimen Registry",
-      "uninstallDisplayName": "AgriSpecimen Registry"
+      "shortcutName": "AgriRegistry",
+      "uninstallDisplayName": "AgriRegistry",
+      "installerIcon": "electron/assets/agriregistry-icon.ico",
+      "uninstallerIcon": "electron/assets/agriregistry-icon.ico",
+      "installerHeaderIcon": "electron/assets/agriregistry-icon.ico"
     }
   },
   "allowScripts": {
