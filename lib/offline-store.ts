@@ -6,11 +6,13 @@ const DB_VERSION = 1;
 const META_STORE = "meta";
 const MUTATION_STORE = "mutations";
 const PHOTO_STORE = "photos";
+const IS_ELECTRON_DESKTOP = typeof navigator !== "undefined" && /Electron\//i.test(navigator.userAgent);
+const MAX_CACHED_ROWS = IS_ELECTRON_DESKTOP ? 5000 : 500;
 
 export const OFFLINE_PHOTO_PREFIX = "offline-photo-";
-export const MAX_PENDING_MUTATIONS = 40;
-export const MAX_PENDING_PHOTO_BYTES = 24 * 1024 * 1024;
-const MAX_CACHED_PHOTO_BYTES = 75 * 1024 * 1024;
+export const MAX_PENDING_MUTATIONS = IS_ELECTRON_DESKTOP ? 500 : 40;
+export const MAX_PENDING_PHOTO_BYTES = IS_ELECTRON_DESKTOP ? 512 * 1024 * 1024 : 24 * 1024 * 1024;
+const MAX_CACHED_PHOTO_BYTES = IS_ELECTRON_DESKTOP ? 2 * 1024 * 1024 * 1024 : 75 * 1024 * 1024;
 
 export type SessionUser = {
   $id: string;
@@ -120,7 +122,7 @@ export async function clearCachedUser(): Promise<void> {
 }
 
 export async function cacheRows(userId: string, rows: SpecimenRow[]): Promise<void> {
-  const limitedRows = rows.slice(0, 500);
+  const limitedRows = rows.slice(0, MAX_CACHED_ROWS);
   await putMeta(`rows:${userId}`, limitedRows);
   await putMeta(`rows-cached-at:${userId}`, new Date().toISOString());
 }
@@ -256,7 +258,7 @@ export async function enqueueMutation(incoming: OfflineMutation): Promise<void> 
     throw new Error(`Offline queue limit reached (${MAX_PENDING_MUTATIONS} changes). Connect to the internet and sync before adding more.`);
   }
   if (queuedBytes > MAX_PENDING_PHOTO_BYTES) {
-    throw new Error("Offline photo queue reached 24 MB. Connect to the internet and sync before adding more photographs.");
+    throw new Error(`Offline photo queue reached ${Math.round(MAX_PENDING_PHOTO_BYTES / (1024 * 1024))} MB. Connect to the internet and sync before adding more photographs.`);
   }
 
   if (previous) {

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>AgriSpecimen Registry - Offline</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #edf3ea;
+      color: #153c2b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      background:
+        radial-gradient(circle at top, rgba(54, 112, 78, 0.22), transparent 38%),
+        #edf3ea;
+    }
+
+    main {
+      width: min(620px, 100%);
+      padding: 42px;
+      border: 1px solid rgba(21, 60, 43, 0.15);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 24px 70px rgba(27, 69, 48, 0.17);
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #377b54;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: clamp(34px, 6vw, 52px);
+      line-height: 1.04;
+    }
+
+    p {
+      margin: 20px 0 0;
+      color: #506c5e;
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 28px;
+      padding: 16px 20px;
+      border: 0;
+      border-radius: 16px;
+      background: #1f6a43;
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    small {
+      display: block;
+      margin-top: 18px;
+      color: #71857a;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">AgriSpecimen Desktop</p>
+    <h1>The registry is waiting for a connection.</h1>
+    <p>
+      Open the desktop app online at least once and sign in. After the
+      website shell and registry data are cached, the app can open offline,
+      save changes locally, and synchronize them when the connection returns.
+    </p>
+    <button id="retry" type="button">Retry connection</button>
+    <small>
+      Uninstalling the application or deleting its application data also
+      removes locally queued offline changes.
+    </small>
+  </main>
+
+  <script>
+    const target =
+      new URLSearchParams(window.location.search).get("url") ||
+      "https://agri-specimen-registry.vercel.app";
+
+    function retry() {
+      window.location.href = target;
+    }
+
+    document.getElementById("retry").addEventListener("click", retry);
+    window.addEventListener("online", retry);
+
+    setInterval(() => {
+      if (navigator.onLine) retry();
+    }, 5000);
+  </script>
+</body>
+</html>
