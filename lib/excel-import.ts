@@ -1,4 +1,4 @@
-import { strFromU8, unzipSync } from "fflate";
+﻿import { strFromU8, unzipSync } from "fflate";
 import { emptySpecimen, photoSlots, specimenFields, type SpecimenData } from "./specimen-fields";
 
 type CellValue = string | number | boolean | Date | null;
@@ -170,6 +170,11 @@ function mimeTypeForPath(path: string): string {
   return imageMimeTypes[extension] || "application/octet-stream";
 }
 
+function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
 function columnIndexFromReference(reference: string): number {
   const letters = reference.match(/^[A-Z]+/i)?.[0]?.toUpperCase() ?? "A";
   let result = 0;
@@ -253,7 +258,7 @@ function readWorksheetImages(
         rowIndex,
         columnIndex,
         sourcePath,
-        file: new File([bytes], baseName(sourcePath), { type: mimeType, lastModified: Date.now() }),
+        file: new File([copyBytesToArrayBuffer(bytes)], baseName(sourcePath), { type: mimeType, lastModified: Date.now() }),
       });
     }
   }
@@ -450,13 +455,13 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
     if (normalizedSheetName.includes("notes") || normalizedSheetName.includes("readme") || normalizedSheetName.includes("instructions")) continue;
     const parsed = parseSheetRows(sheet.name, sheet.rows, sheet.images);
     if (parsed.length === 0) {
-      warnings.push(`Sheet “${sheet.name}” did not contain a normal row-based specimen table and was skipped.`);
+      warnings.push(`Sheet â€œ${sheet.name}â€ did not contain a normal row-based specimen table and was skipped.`);
       continue;
     }
 
     const assignedImages = parsed.reduce((sum, item) => sum + item.photos.length, 0);
     if (sheet.images.length > assignedImages) {
-      warnings.push(`${sheet.images.length - assignedImages} embedded image${sheet.images.length - assignedImages === 1 ? "" : "s"} in sheet “${sheet.name}” could not be matched to a specimen row and were skipped.`);
+      warnings.push(`${sheet.images.length - assignedImages} embedded image${sheet.images.length - assignedImages === 1 ? "" : "s"} in sheet â€œ${sheet.name}â€ could not be matched to a specimen row and were skipped.`);
     }
 
     const hasMergedRecords = parsed.some((item) => {
@@ -464,7 +469,7 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
       return identifiers.length > 1;
     });
     if (hasMergedRecords) {
-      warnings.push(`Sheet “${sheet.name}” appears to contain several specimens merged into one cell row. Use the normalized registry-import workbook instead.`);
+      warnings.push(`Sheet â€œ${sheet.name}â€ appears to contain several specimens merged into one cell row. Use the normalized registry-import workbook instead.`);
       continue;
     }
 
@@ -477,3 +482,4 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
 
   return { rows, warnings };
 }
+
