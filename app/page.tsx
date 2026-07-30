@@ -250,35 +250,84 @@ function FieldInput({
 
 function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: string; className?: string }) {
   const isLocal = fileId.startsWith(OFFLINE_PHOTO_PREFIX);
-  const [src, setSrc] = useState(isLocal ? "" : remotePhotoPreview(fileId));
+  const [src, setSrc] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    let objectUrl = "";
     let cancelled = false;
-    const useCached = async () => {
-      const blob = await getCachedPhoto(fileId);
-      if (!blob || cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setSrc(objectUrl);
+    let activeObjectUrl = "";
+
+    const useBlob = (blob: Blob) => {
+      if (cancelled) return;
+
+      if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+      activeObjectUrl = URL.createObjectURL(blob);
+      setSrc(activeObjectUrl);
+      setLoadFailed(false);
     };
 
-    if (isLocal || !navigator.onLine) void useCached();
-    else void cachePhotoFromUrl(fileId, remotePhotoPreview(fileId));
+    const loadPhoto = async () => {
+      setSrc("");
+      setLoadFailed(false);
+
+      const cached = await getCachedPhoto(fileId);
+      if (cached) {
+        useBlob(cached);
+        if (isLocal || !navigator.onLine) return;
+      }
+
+      if (isLocal || !navigator.onLine) {
+        if (!cached && !cancelled) setLoadFailed(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(remotePhotoPreview(fileId), {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Photo request failed with status ${response.status}.`);
+        }
+
+        const blob = await response.blob();
+        if (!blob.size) throw new Error("The photo response was empty.");
+
+        await cachePhoto(fileId, blob);
+        useBlob(blob);
+      } catch (error) {
+        console.error("Could not load specimen photo", { fileId, error });
+        if (!cached && !cancelled) setLoadFailed(true);
+      }
+    };
+
+    void loadPhoto();
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
     };
   }, [fileId, isLocal]);
 
-  if (!src) return <div className="offline-photo-loading"><Camera /><span>Cached photo</span></div>;
+  if (!src) {
+    return (
+      <div className="offline-photo-loading">
+        <Camera />
+        <span>{loadFailed ? "Photo unavailable" : "Loading photo"}</span>
+      </div>
+    );
+  }
+
   return (
     <img
       src={src}
       alt={alt}
       className={className}
-      crossOrigin={isLocal ? undefined : "anonymous"}
-      onError={() => { void getCachedPhoto(fileId).then((blob) => { if (blob) setSrc(URL.createObjectURL(blob)); }); }}
+      onError={() => {
+        setSrc("");
+        setLoadFailed(true);
+      }}
     />
   );
 }
