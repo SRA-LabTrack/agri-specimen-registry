@@ -188,34 +188,15 @@ function createOfflineSnapshot(
   } as SpecimenRow;
 }
 
-function remotePhotoView(fileId: string): string {
-  return String(storage.getFileView({
+function remotePhotoView(fileId: string): URL {
+  return new URL(String(storage.getFileView({
     bucketId: APPWRITE_BUCKET_ID,
     fileId,
-  }));
+  })));
 }
 
-function appwritePhotoHeaders(): Record<string, string> {
-  const headers = {
-    ...(client.getHeaders() as Record<string, string>),
-  };
-
-  if (typeof window !== "undefined") {
-    const fallbackCookie = window.localStorage.getItem("cookieFallback");
-    if (fallbackCookie) {
-      headers["X-Fallback-Cookies"] = fallbackCookie;
-    }
-  }
-
-  return headers;
-}
-
-async function normalizeRemotePhotoBlob(blob: Blob): Promise<Blob> {
-  if (blob.type.startsWith("image/")) return blob;
-
-  const bytes = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
-  const ascii = String.fromCharCode(...bytes);
-  let type = "";
+function detectPhotoMimeType(bytes: Uint8Array): string {
+  const ascii = String.fromCharCode(...bytes.slice(0, 16));
 
   if (
     bytes[0] === 0x89
@@ -223,48 +204,59 @@ async function normalizeRemotePhotoBlob(blob: Blob): Promise<Blob> {
     && bytes[2] === 0x4e
     && bytes[3] === 0x47
   ) {
-    type = "image/png";
-  } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
-    type = "image/jpeg";
-  } else if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) {
-    type = "image/gif";
-  } else if (
+    return "image/png";
+  }
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return "image/jpeg";
+  }
+
+  if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) {
+    return "image/gif";
+  }
+
+  if (
     ascii.slice(0, 4) === "RIFF"
     && ascii.slice(8, 12) === "WEBP"
   ) {
-    type = "image/webp";
+    return "image/webp";
   }
 
-  if (!type) {
-    throw new Error("Appwrite returned data that is not a supported specimen image.");
+  if (
+    ascii.trimStart().startsWith("<svg")
+    || ascii.trimStart().startsWith("<?xml")
+  ) {
+    return "image/svg+xml";
   }
 
-  return new Blob([blob], { type });
+  return "";
 }
 
 async function fetchRemotePhotoBlob(fileId: string): Promise<Blob> {
-  const response = await fetch(remotePhotoView(fileId), {
-    credentials: "include",
-    cache: "no-store",
-    headers: appwritePhotoHeaders(),
-  });
+  const result = await client.call(
+    "GET",
+    remotePhotoView(fileId),
+    {},
+    {},
+    "arrayBuffer",
+  );
 
-  if (!response.ok) {
-    let detail = "";
-    try {
-      detail = (await response.text()).slice(0, 180).replace(/\s+/g, " ");
-    } catch {
-      // Keep the HTTP status as the useful error when no body can be read.
-    }
+  const buffer = result as ArrayBuffer;
+  const bytes = new Uint8Array(buffer);
 
+  if (!bytes.byteLength) {
+    throw new Error("The Appwrite photo response was empty.");
+  }
+
+  const mimeType = detectPhotoMimeType(bytes);
+  if (!mimeType) {
+    const preview = new TextDecoder().decode(bytes.slice(0, 180)).replace(/\s+/g, " ");
     throw new Error(
-      `Photo request failed with status ${response.status}${detail ? `: ${detail}` : ""}.`,
+      `Appwrite did not return image data. Response started with: ${preview || "unknown binary data"}`,
     );
   }
 
-  const blob = await response.blob();
-  if (!blob.size) throw new Error("The Appwrite photo response was empty.");
-  return normalizeRemotePhotoBlob(blob);
+  return new Blob([buffer], { type: mimeType });
 }
 
 async function warmRegistryPhotoCache(rows: SpecimenRow[]): Promise<void> {
@@ -284,7 +276,10 @@ async function warmRegistryPhotoCache(rows: SpecimenRow[]): Promise<void> {
         const blob = await fetchRemotePhotoBlob(fileId);
         await cachePhoto(fileId, blob);
       } catch (error) {
-        console.error("Could not warm specimen photo cache", { fileId, error });
+        console.error("Could not warm specimen photo cache", {
+          fileId,
+          error,
+        });
       }
     }
   });
@@ -334,47 +329,58 @@ function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: stri
 
   useEffect(() => {
     let cancelled = false;
-    let activeObjectUrl = "";
+    let objectUrl = "";
 
-    const useBlob = (blob: Blob) => {
+    const displayBlob = (blob: Blob) => {
       if (cancelled) return;
 
-      if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
-      activeObjectUrl = URL.createObjectURL(blob);
-      setSrc(activeObjectUrl);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
       setLoadFailed(false);
     };
 
-    const loadPhoto = async () => {
+    const load = async () => {
       setSrc("");
       setLoadFailed(false);
 
       const cached = await getCachedPhoto(fileId);
       if (cached) {
-        useBlob(cached);
-        if (isLocal || !navigator.onLine) return;
+        displayBlob(cached);
+
+        if (isLocal || !navigator.onLine) {
+          return;
+        }
       }
 
       if (isLocal || !navigator.onLine) {
-        if (!cached && !cancelled) setLoadFailed(true);
+        if (!cached && !cancelled) {
+          setLoadFailed(true);
+        }
         return;
       }
 
       try {
         const blob = await fetchRemotePhotoBlob(fileId);
         await cachePhoto(fileId, blob);
-        useBlob(blob);
+        displayBlob(blob);
       } catch (error) {
-        console.error("Could not load specimen photo", { fileId, error });
-        if (!cached && !cancelled) setLoadFailed(true);
+        console.error("Could not load specimen photo", {
+          fileId,
+          error,
+        });
+
+        if (!cached && !cancelled) {
+          setLoadFailed(true);
+        }
       }
     };
 
-    void loadPhoto();
+    void load();
 
     return () => {
       cancelled = true;
-      if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [fileId, isLocal]);
 
