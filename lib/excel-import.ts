@@ -1,4 +1,4 @@
-﻿import { strFromU8, unzipSync } from "fflate";
+import { strFromU8, unzipSync } from "fflate";
 import { emptySpecimen, photoSlots, specimenFields, type SpecimenData } from "./specimen-fields";
 
 type CellValue = string | number | boolean | Date | null;
@@ -73,6 +73,15 @@ registerAlias("taxonomicStatus", "TaxonomicStatus");
 registerAlias("hostPreyFood", "Host/Prey/Food", "Host Prey Food", "Hosts");
 registerAlias("possiblePredator", "Possible Predator");
 registerAlias("notes", "Notes", "Additional Notes", "Remarks", "Comments");
+registerAlias("area", "Area", "Collection Area", "Sampling Area");
+registerAlias("site", "Site", "Site No", "Site Number", "Sampling Site");
+registerAlias("colonyMargin", "Colony Morphology Margin", "Colony Margin", "Margin");
+registerAlias("colonyElevation", "Colony Morphology Elevation", "Colony Elevation");
+registerAlias("colonyShape", "Colony Morphology Shape", "Colony Shape");
+registerAlias("colonyColour", "Colony Morphology Colour", "Colony Morphology Color", "Colony Colour", "Colony Color", "Colour", "Color");
+registerAlias("colonyDiameter", "Colony Morphology Diameter", "Colony Diameter", "Diameter");
+registerAlias("cellShape", "Cell Characteristics Shape", "Cell Shape");
+registerAlias("gramStainingReaction", "Cell Characteristics Gram Staining Reaction", "Gram Staining Reaction", "Gram Reaction");
 
 const noteOnlyHeaders = new Set([
   "accessedfrom",
@@ -373,37 +382,132 @@ function photosForRow(images: WorksheetImage[], rowIndex: number, headers: strin
   return parsed;
 }
 
-function findHeaderRow(rows: WorksheetRow[]): number {
-  const maxRows = Math.min(rows.length, 20);
-  let bestIndex = -1;
-  let bestScore = 0;
-  for (let index = 0; index < maxRows; index += 1) {
-    const row = rows[index] ?? [];
-    const normalized = row.map(normalizeHeader);
-    const score = normalized.filter((header) => fieldAliases[header] || header === "coordinates" || noteOnlyHeaders.has(header)).length;
-    const hasPrimaryId = normalized.some((header) => fieldAliases[header] === "specimenNo");
-    if (score > bestScore && (hasPrimaryId || score >= 4)) {
-      bestScore = score;
-      bestIndex = index;
-    }
-  }
-  return bestScore >= 2 ? bestIndex : -1;
+type HeaderPlan = {
+  headers: string[];
+  dataStartIndex: number;
+  score: number;
+  hasPrimaryId: boolean;
+};
+
+const groupedHeaderNames = new Set([
+  "colonymorphology",
+  "cellcharacteristics",
+]);
+
+function isRecognizedHeader(value: string): boolean {
+  const normalized = normalizeHeader(value);
+  return Boolean(
+    fieldAliases[normalized]
+      || photoHeaderAliases[normalized]
+      || normalized === "coordinates"
+      || noteOnlyHeaders.has(normalized),
+  );
 }
 
-function parseSheetRows(sheetName: string, rows: WorksheetRow[], images: WorksheetImage[]): ParsedImportRow[] {
-  const headerIndex = findHeaderRow(rows);
-  if (headerIndex < 0) return [];
+function buildHeaderPlan(rows: WorksheetRow[], topIndex: number, depth: 1 | 2): HeaderPlan {
+  const topRow = rows[topIndex] ?? [];
+  const lowerRow = depth === 2 ? (rows[topIndex + 1] ?? []) : [];
+  const columnCount = Math.max(topRow.length, lowerRow.length);
+  const inheritedGroups: string[] = new Array(columnCount).fill("");
+  let activeGroup = "";
 
-  const headers = rows[headerIndex].map(cellToText);
+  for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+    const topValue = cellToText(topRow[columnIndex] ?? null);
+    const normalizedTop = normalizeHeader(topValue);
+
+    if (groupedHeaderNames.has(normalizedTop)) {
+      activeGroup = topValue;
+    } else if (topValue) {
+      activeGroup = "";
+    }
+
+    inheritedGroups[columnIndex] = activeGroup;
+  }
+
+  const headers: string[] = [];
+  let score = 0;
+  let hasPrimaryId = false;
+
+  for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+    const topValue = cellToText(topRow[columnIndex] ?? null);
+    const lowerValue = cellToText(lowerRow[columnIndex] ?? null);
+    const groupValue = inheritedGroups[columnIndex];
+    const candidates: string[] = [];
+
+    if (
+      topValue
+      && isRecognizedHeader(topValue)
+      && !groupedHeaderNames.has(normalizeHeader(topValue))
+    ) {
+      candidates.push(topValue);
+    }
+
+    if (groupValue && lowerValue) candidates.push(groupValue + " " + lowerValue);
+    if (lowerValue) candidates.push(lowerValue);
+    if (topValue) candidates.push(topValue);
+
+    const resolved = candidates.find(isRecognizedHeader) || candidates[0] || "";
+    headers[columnIndex] = resolved;
+
+    if (isRecognizedHeader(resolved)) {
+      score += 1;
+      if (fieldAliases[normalizeHeader(resolved)] === "specimenNo") {
+        hasPrimaryId = true;
+      }
+    }
+  }
+
+  return {
+    headers,
+    dataStartIndex: topIndex + depth,
+    score,
+    hasPrimaryId,
+  };
+}
+
+function findHeaderPlan(rows: WorksheetRow[]): HeaderPlan | null {
+  const maxRows = Math.min(rows.length, 20);
+  let best: HeaderPlan | null = null;
+
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    const candidates: HeaderPlan[] = [buildHeaderPlan(rows, rowIndex, 1)];
+
+    if (rowIndex + 1 < rows.length) {
+      candidates.push(buildHeaderPlan(rows, rowIndex, 2));
+    }
+
+    for (const candidate of candidates) {
+      const usable = candidate.score >= 2
+        && (candidate.hasPrimaryId || candidate.score >= 4);
+
+      if (!usable) continue;
+
+      if (!best || candidate.score > best.score) {
+        best = candidate;
+      }
+    }
+  }
+
+  return best;
+}
+
+function parseSheetRows(
+  sheetName: string,
+  rows: WorksheetRow[],
+  images: WorksheetImage[],
+): ParsedImportRow[] {
+  const plan = findHeaderPlan(rows);
+  if (!plan) return [];
+
   const parsed: ParsedImportRow[] = [];
 
-  for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+  for (let rowIndex = plan.dataStartIndex; rowIndex < rows.length; rowIndex += 1) {
     const sourceRow = rows[rowIndex] ?? [];
     const data = emptySpecimen();
     let recognizedValueCount = 0;
 
-    for (let columnIndex = 0; columnIndex < headers.length; columnIndex += 1) {
-      const header = headers[columnIndex];
+    for (let columnIndex = 0; columnIndex < plan.headers.length; columnIndex += 1) {
+      const header = plan.headers[columnIndex];
       const normalizedHeader = normalizeHeader(header);
       const sourceValue = sourceRow[columnIndex] ?? null;
       const value = cellToText(sourceValue);
@@ -425,18 +529,21 @@ function parseSheetRows(sheetName: string, rows: WorksheetRow[], images: Workshe
       }
 
       if (noteOnlyHeaders.has(normalizedHeader)) {
-        appendNote(data, `${header}: ${value}`);
+        appendNote(data, header + ": " + value);
         recognizedValueCount += 1;
       }
     }
 
     if (recognizedValueCount === 0) continue;
-    const meaningfulValues = Object.values(data).filter((value) => String(value).trim());
+
+    const meaningfulValues = Object.values(data)
+      .filter((value) => String(value).trim());
+
     if (meaningfulValues.length === 0) continue;
 
     parsed.push({
       data,
-      photos: photosForRow(images, rowIndex, headers),
+      photos: photosForRow(images, rowIndex, plan.headers),
       sourceSheet: sheetName,
       sourceRow: rowIndex + 1,
     });
@@ -455,13 +562,13 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
     if (normalizedSheetName.includes("notes") || normalizedSheetName.includes("readme") || normalizedSheetName.includes("instructions")) continue;
     const parsed = parseSheetRows(sheet.name, sheet.rows, sheet.images);
     if (parsed.length === 0) {
-      warnings.push(`Sheet â€œ${sheet.name}â€ did not contain a normal row-based specimen table and was skipped.`);
+      warnings.push(`Sheet "${sheet.name}" did not contain a normal row-based specimen table and was skipped.`);
       continue;
     }
 
     const assignedImages = parsed.reduce((sum, item) => sum + item.photos.length, 0);
     if (sheet.images.length > assignedImages) {
-      warnings.push(`${sheet.images.length - assignedImages} embedded image${sheet.images.length - assignedImages === 1 ? "" : "s"} in sheet â€œ${sheet.name}â€ could not be matched to a specimen row and were skipped.`);
+      warnings.push(`${sheet.images.length - assignedImages} embedded image${sheet.images.length - assignedImages === 1 ? "" : "s"} in sheet "${sheet.name}" could not be matched to a specimen row and were skipped.`);
     }
 
     const hasMergedRecords = parsed.some((item) => {
@@ -469,7 +576,7 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
       return identifiers.length > 1;
     });
     if (hasMergedRecords) {
-      warnings.push(`Sheet â€œ${sheet.name}â€ appears to contain several specimens merged into one cell row. Use the normalized registry-import workbook instead.`);
+      warnings.push(`Sheet "${sheet.name}" appears to contain several specimens merged into one cell row. Use the normalized registry-import workbook instead.`);
       continue;
     }
 

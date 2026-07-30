@@ -131,7 +131,7 @@ export async function compressSpecimenImage(file: File): Promise<ImageCompressio
 
   // Keep an already-small original when re-encoding would not save meaningful space.
   const meaningfulSaving = bestBlob.size < file.size * 0.96;
-  if (!meaningfulSaving && file.size <= TARGET_BYTES && Math.max(original.width, original.height) <= MAX_LONG_EDGE) {
+  if (!meaningfulSaving && file.type === "image/webp" && file.size <= TARGET_BYTES && Math.max(original.width, original.height) <= MAX_LONG_EDGE) {
     return {
       file,
       originalBytes: file.size,
