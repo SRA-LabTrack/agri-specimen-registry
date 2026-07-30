@@ -1,4 +1,4 @@
-const VERSION = "agrispecimen-web-offline-v2";
+const VERSION = "agrispecimen-web-offline-v5-shared-editing-excel-images";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

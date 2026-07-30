@@ -116,6 +116,7 @@ async function main() {
     permissions: [
       sdk.Permission.read(sdk.Role.users()),
       sdk.Permission.create(sdk.Role.users()),
+      sdk.Permission.update(sdk.Role.users()),
     ],
     rowSecurity: true,
     enabled: true,
@@ -158,7 +159,7 @@ async function main() {
   }
 
   const indexes = [
-    ["specimen_no_unique", "unique", ["specimenNo"]],
+    ["specimen_no_key", "key", ["specimenNo"]],
     ["search_text_fulltext", "fulltext", ["searchText"]],
     ["family_key", "key", ["family"]],
     ["genus_key", "key", ["genus"]],
@@ -181,7 +182,12 @@ async function main() {
   await ensureResource(`storage bucket '${bucketId}'`, () => storage.createBucket({
     bucketId,
     name: "Specimen Photos",
-    permissions: [sdk.Permission.create(sdk.Role.users())],
+    permissions: [
+      sdk.Permission.read(sdk.Role.users()),
+      sdk.Permission.create(sdk.Role.users()),
+      sdk.Permission.update(sdk.Role.users()),
+      sdk.Permission.delete(sdk.Role.users()),
+    ],
     fileSecurity: true,
     enabled: true,
     maximumFileSize: 20 * 1024 * 1024,

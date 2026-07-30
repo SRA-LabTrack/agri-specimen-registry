@@ -1,16 +1,32 @@
 import { strFromU8, unzipSync } from "fflate";
-import { emptySpecimen, specimenFields, type SpecimenData } from "./specimen-fields";
+import { emptySpecimen, photoSlots, specimenFields, type SpecimenData } from "./specimen-fields";
 
 type CellValue = string | number | boolean | Date | null;
 type WorksheetRow = CellValue[];
 
+type WorksheetImage = {
+  rowIndex: number;
+  columnIndex: number;
+  file: File;
+  sourcePath: string;
+};
+
 type WorkbookSheet = {
   name: string;
   rows: WorksheetRow[];
+  images: WorksheetImage[];
+};
+
+export type ParsedImportPhoto = {
+  slotKey: string;
+  file: File;
+  sourceColumn: number;
+  sourceName: string;
 };
 
 export type ParsedImportRow = {
   data: SpecimenData;
+  photos: ParsedImportPhoto[];
   sourceSheet: string;
   sourceRow: number;
 };
@@ -68,6 +84,31 @@ const noteOnlyHeaders = new Set([
   "sourcedataset",
 ]);
 
+const photoHeaderAliases: Record<string, string> = {};
+
+function registerPhotoAlias(slotKey: string, ...labels: string[]) {
+  for (const label of labels) photoHeaderAliases[normalizeHeader(label)] = slotKey;
+}
+
+registerPhotoAlias("front", "Photo", "Image", "Picture", "Specimen Photo", "Specimen Image", "Front", "Front View");
+registerPhotoAlias("side", "Side", "Side View", "Lateral", "Lateral View");
+registerPhotoAlias("dorsal", "Dorsal", "Dorsal View", "Top", "Top View");
+registerPhotoAlias("ventral", "Ventral", "Ventral View", "Bottom", "Bottom View");
+registerPhotoAlias("label", "Label Photo", "Specimen Label", "Label Image");
+registerPhotoAlias("habitatPhoto", "Habitat Photo", "Host Plant Photo", "Habitat Image", "Host Image");
+registerPhotoAlias("other", "Other Photo", "Other Image", "Additional Photo", "Additional Image");
+
+const imageMimeTypes: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+};
+
 function parseXml(bytes?: Uint8Array): Document | null {
   if (!bytes) return null;
   const xml = new DOMParser().parseFromString(strFromU8(bytes), "application/xml");
@@ -89,6 +130,44 @@ function normalizeZipPath(basePath: string, target: string): string {
     else normalized.push(part);
   }
   return normalized.join("/");
+}
+
+function directoryName(path: string): string {
+  const index = path.lastIndexOf("/");
+  return index < 0 ? "" : path.slice(0, index);
+}
+
+function baseName(path: string): string {
+  return path.split("/").pop() || "embedded-image";
+}
+
+function relationshipsPath(ownerPath: string): string {
+  const directory = directoryName(ownerPath);
+  return `${directory}/_rels/${baseName(ownerPath)}.rels`;
+}
+
+function readRelationships(files: Record<string, Uint8Array>, ownerPath: string): Map<string, string> {
+  const document = parseXml(files[relationshipsPath(ownerPath)]);
+  const relationships = new Map<string, string>();
+  if (!document) return relationships;
+
+  for (const relationship of elementsByLocalName(document, "Relationship")) {
+    if (relationship.getAttribute("TargetMode") === "External") continue;
+    const id = relationship.getAttribute("Id");
+    const target = relationship.getAttribute("Target");
+    if (id && target) relationships.set(id, normalizeZipPath(directoryName(ownerPath), target));
+  }
+  return relationships;
+}
+
+function relationshipId(element: Element, localName: string): string | null {
+  return element.getAttribute(`r:${localName}`)
+    ?? element.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", localName);
+}
+
+function mimeTypeForPath(path: string): string {
+  const extension = path.split(".").pop()?.toLowerCase() || "";
+  return imageMimeTypes[extension] || "application/octet-stream";
 }
 
 function columnIndexFromReference(reference: string): number {
@@ -136,6 +215,52 @@ function readWorksheetRows(document: Document, sharedStrings: string[]): Workshe
   return rows.map((row) => row ?? []);
 }
 
+function readWorksheetImages(
+  files: Record<string, Uint8Array>,
+  worksheetPath: string,
+  worksheet: Document,
+): WorksheetImage[] {
+  const worksheetRelationships = readRelationships(files, worksheetPath);
+  const images: WorksheetImage[] = [];
+
+  for (const drawingElement of elementsByLocalName(worksheet, "drawing")) {
+    const drawingRelationshipId = relationshipId(drawingElement, "id");
+    const drawingPath = drawingRelationshipId ? worksheetRelationships.get(drawingRelationshipId) : undefined;
+    if (!drawingPath) continue;
+
+    const drawing = parseXml(files[drawingPath]);
+    if (!drawing) continue;
+    const drawingRelationships = readRelationships(files, drawingPath);
+    const anchors = [
+      ...elementsByLocalName(drawing, "oneCellAnchor"),
+      ...elementsByLocalName(drawing, "twoCellAnchor"),
+    ];
+
+    for (const anchor of anchors) {
+      const from = elementsByLocalName(anchor, "from")[0];
+      const blip = elementsByLocalName(anchor, "blip")[0];
+      if (!from || !blip) continue;
+
+      const rowIndex = Number(elementsByLocalName(from, "row")[0]?.textContent ?? -1);
+      const columnIndex = Number(elementsByLocalName(from, "col")[0]?.textContent ?? -1);
+      const embeddedRelationshipId = relationshipId(blip, "embed");
+      const sourcePath = embeddedRelationshipId ? drawingRelationships.get(embeddedRelationshipId) : undefined;
+      const bytes = sourcePath ? files[sourcePath] : undefined;
+      const mimeType = sourcePath ? mimeTypeForPath(sourcePath) : "";
+      if (rowIndex < 0 || columnIndex < 0 || !sourcePath || !bytes || !mimeType.startsWith("image/")) continue;
+
+      images.push({
+        rowIndex,
+        columnIndex,
+        sourcePath,
+        file: new File([bytes], baseName(sourcePath), { type: mimeType, lastModified: Date.now() }),
+      });
+    }
+  }
+
+  return images;
+}
+
 async function readWorkbookSheets(file: File): Promise<WorkbookSheet[]> {
   const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
   const workbook = parseXml(files["xl/workbook.xml"]);
@@ -160,7 +285,11 @@ async function readWorkbookSheets(file: File): Promise<WorkbookSheet[]> {
     if (!path) continue;
     const worksheet = parseXml(files[path]);
     if (!worksheet) continue;
-    sheets.push({ name, rows: readWorksheetRows(worksheet, sharedStrings) });
+    sheets.push({
+      name,
+      rows: readWorksheetRows(worksheet, sharedStrings),
+      images: readWorksheetImages(files, path, worksheet),
+    });
   }
   return sheets;
 }
@@ -215,6 +344,30 @@ function applyCoordinates(value: string, data: SpecimenData) {
   }
 }
 
+function photosForRow(images: WorksheetImage[], rowIndex: number, headers: string[]): ParsedImportPhoto[] {
+  const rowImages = images.filter((image) => image.rowIndex === rowIndex);
+  const usedSlots = new Set<string>();
+  const parsed: ParsedImportPhoto[] = [];
+
+  for (const image of rowImages) {
+    const header = headers[image.columnIndex] || "";
+    let slotKey = photoHeaderAliases[normalizeHeader(header)] || "front";
+    if (usedSlots.has(slotKey)) {
+      slotKey = photoSlots.find((slot) => !usedSlots.has(slot.key))?.key || "other";
+    }
+    if (usedSlots.has(slotKey)) continue;
+    usedSlots.add(slotKey);
+    parsed.push({
+      slotKey,
+      file: image.file,
+      sourceColumn: image.columnIndex + 1,
+      sourceName: image.sourcePath,
+    });
+  }
+
+  return parsed;
+}
+
 function findHeaderRow(rows: WorksheetRow[]): number {
   const maxRows = Math.min(rows.length, 20);
   let bestIndex = -1;
@@ -232,7 +385,7 @@ function findHeaderRow(rows: WorksheetRow[]): number {
   return bestScore >= 2 ? bestIndex : -1;
 }
 
-function parseSheetRows(sheetName: string, rows: WorksheetRow[]): ParsedImportRow[] {
+function parseSheetRows(sheetName: string, rows: WorksheetRow[], images: WorksheetImage[]): ParsedImportRow[] {
   const headerIndex = findHeaderRow(rows);
   if (headerIndex < 0) return [];
 
@@ -276,7 +429,12 @@ function parseSheetRows(sheetName: string, rows: WorksheetRow[]): ParsedImportRo
     const meaningfulValues = Object.values(data).filter((value) => String(value).trim());
     if (meaningfulValues.length === 0) continue;
 
-    parsed.push({ data, sourceSheet: sheetName, sourceRow: rowIndex + 1 });
+    parsed.push({
+      data,
+      photos: photosForRow(images, rowIndex, headers),
+      sourceSheet: sheetName,
+      sourceRow: rowIndex + 1,
+    });
   }
 
   return parsed;
@@ -290,10 +448,15 @@ export async function parseRegistryWorkbook(file: File): Promise<WorkbookImportA
   for (const sheet of sheets) {
     const normalizedSheetName = normalizeHeader(sheet.name);
     if (normalizedSheetName.includes("notes") || normalizedSheetName.includes("readme") || normalizedSheetName.includes("instructions")) continue;
-    const parsed = parseSheetRows(sheet.name, sheet.rows);
+    const parsed = parseSheetRows(sheet.name, sheet.rows, sheet.images);
     if (parsed.length === 0) {
       warnings.push(`Sheet “${sheet.name}” did not contain a normal row-based specimen table and was skipped.`);
       continue;
+    }
+
+    const assignedImages = parsed.reduce((sum, item) => sum + item.photos.length, 0);
+    if (sheet.images.length > assignedImages) {
+      warnings.push(`${sheet.images.length - assignedImages} embedded image${sheet.images.length - assignedImages === 1 ? "" : "s"} in sheet “${sheet.name}” could not be matched to a specimen row and were skipped.`);
     }
 
     const hasMergedRecords = parsed.some((item) => {

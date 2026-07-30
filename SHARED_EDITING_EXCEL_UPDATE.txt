@@ -1,0 +1,31 @@
+AGRISPECIMEN SHARED EDITING + SMART EXCEL IMPORT
+
+WHAT CHANGED
+1. Every signed-in member can edit every specimen record, including fields, status, and photos.
+2. Only the original contributor can delete the entire specimen record.
+3. Manually registering a specimen always creates a new record, even when the Specimen No. already exists.
+4. Excel import now behaves differently from manual registration:
+   - Matching Specimen No. -> updates the newest existing record.
+   - No matching Specimen No. -> creates a new record.
+   - Blank Excel cells do not erase existing values.
+5. Images embedded inside .xlsx worksheets are matched to their specimen row, compressed in the browser, converted to an optimized upload, and stored in Appwrite.
+6. Embedded image column names can be Photo, Image, Front View, Side View, Dorsal View, Ventral View, Label Photo, Habitat Photo, or Other Photo.
+
+IMPORTANT: RUN THE APPWRITE MIGRATION ONCE
+The old Appwrite setup has a unique Specimen No. index and creator-only update permissions. The website code alone cannot override those server settings.
+
+1. Create a temporary Appwrite API key with TablesDB/Database and Storage management access.
+2. Put it in .env.local:
+   APPWRITE_API_KEY=your_temporary_key
+3. From the project root, run:
+   npm.cmd run migrate:shared-editing
+4. After it says migration complete, remove APPWRITE_API_KEY from .env.local and delete the temporary key in Appwrite Console.
+
+THEN TEST
+npm.cmd run dev
+
+MANUAL ENTRY RULE
+Manual registration never searches for a duplicate. It always creates a separate record.
+
+EXCEL UPDATE RULE
+Excel matching uses Specimen No. When several manual records already share the same Specimen No., the importer updates the newest matching record.

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "setup:appwrite": "node scripts/setup-appwrite.mjs"
+    "setup:appwrite": "node scripts/setup-appwrite.mjs",
+    "migrate:shared-editing": "node scripts/migrate-shared-editing.mjs"
   },
   "dependencies": {
     "appwrite": "26.2.0",

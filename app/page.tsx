@@ -84,7 +84,7 @@ const SAMPLE_STATUSES = ["Collected", "In examination", "Awaiting verification",
 
 type AuthMode = "login" | "register";
 type Toast = { type: "success" | "error"; message: string } | null;
-type ImportSummary = { added: number; duplicates: number; failed: number; total: number } | null;
+type ImportSummary = { added: number; updated: number; images: number; failed: number; total: number } | null;
 
 function generateAutomaticSpecimenNo(index = 0): string {
   return `AUTO-${Date.now().toString(36).toUpperCase()}-${index.toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
@@ -114,6 +114,36 @@ function safeFilename(value: string): string {
 }
 
 type CreatorIdentity = { id: string; name: string; email: string };
+
+function sharedRowPermissions(creatorId: string): string[] {
+  return [
+    Permission.read(Role.users()),
+    Permission.update(Role.users()),
+    Permission.delete(Role.user(creatorId)),
+  ];
+}
+
+function sharedPhotoPermissions(): string[] {
+  return [
+    Permission.read(Role.users()),
+    Permission.update(Role.users()),
+    Permission.delete(Role.users()),
+  ];
+}
+
+function mergeImportedSpecimen(existing: SpecimenData, incoming: SpecimenData): SpecimenData {
+  const merged = { ...emptySpecimen(), ...existing };
+  for (const field of specimenFields) {
+    const value = String(incoming[field.key] || "").trim();
+    if (value) merged[field.key] = incoming[field.key];
+  }
+  return merged;
+}
+
+function newestSpecimenRow(current: SpecimenRow | undefined, candidate: SpecimenRow): SpecimenRow {
+  if (!current) return candidate;
+  return new Date(candidate.$updatedAt).getTime() >= new Date(current.$updatedAt).getTime() ? candidate : current;
+}
 
 function buildRecordCore(data: SpecimenData, creator: CreatorIdentity, photos: PhotoMap) {
   return {
@@ -372,11 +402,7 @@ export default function Home() {
                 bucketId: APPWRITE_BUCKET_ID,
                 fileId: ID.unique(),
                 file,
-                permissions: [
-                  Permission.read(Role.users()),
-                  Permission.update(Role.user(mutation.creator.id)),
-                  Permission.delete(Role.user(mutation.creator.id)),
-                ],
+                permissions: sharedPhotoPermissions(),
               });
               finalPhotos[slot] = uploaded.$id;
               await cachePhoto(uploaded.$id, blob);
@@ -394,11 +420,7 @@ export default function Home() {
                 tableId: APPWRITE_TABLE_ID,
                 rowId: ID.unique(),
                 data: core,
-                permissions: [
-                  Permission.read(Role.users()),
-                  Permission.update(Role.user(mutation.creator.id)),
-                  Permission.delete(Role.user(mutation.creator.id)),
-                ],
+                permissions: sharedRowPermissions(mutation.creator.id),
               });
             } else {
               await tablesDB.updateRow({
@@ -406,6 +428,7 @@ export default function Home() {
                 tableId: APPWRITE_TABLE_ID,
                 rowId: mutation.targetId,
                 data: core,
+                permissions: sharedRowPermissions(mutation.creator.id),
               });
             }
           }
@@ -511,63 +534,52 @@ export default function Home() {
   }, [rows, search, filterField, filterValue]);
 
   const importPlan = useMemo(() => {
-    const existing = new Set(rows.map((row) => row.specimenNo.trim().toLowerCase()).filter(Boolean));
-    const seen = new Set<string>();
-    let duplicates = 0;
+    const known = new Set(rows.map((row) => row.specimenNo.trim().toLowerCase()).filter(Boolean));
+    let additions = 0;
+    let updates = 0;
     let generatedIds = 0;
-    let importable = 0;
+    let images = 0;
 
     for (const item of importRows) {
+      images += item.photos.length;
       const specimenNo = item.data.specimenNo.trim();
       if (!specimenNo) {
         generatedIds += 1;
-        importable += 1;
+        additions += 1;
         continue;
       }
       const normalized = specimenNo.toLowerCase();
-      if (existing.has(normalized) || seen.has(normalized)) {
-        duplicates += 1;
-        continue;
+      if (known.has(normalized)) updates += 1;
+      else {
+        additions += 1;
+        known.add(normalized);
       }
-      seen.add(normalized);
-      importable += 1;
     }
 
-    return { importable, duplicates, generatedIds, total: importRows.length };
+    return { additions, updates, generatedIds, images, total: importRows.length };
   }, [importRows, rows]);
 
   useEffect(() => {
-    const elements = document.querySelectorAll<HTMLElement>(".reveal");
-
-    // Keep content visible when a browser blocks or does not support
-    // IntersectionObserver. This prevents invisible but clickable cards.
-    if (!("IntersectionObserver" in window)) {
-      elements.forEach((element) => {
+    // Keep every section visible on mobile browsers and Android WebView.
+    // Some embedded browsers report incorrect IntersectionObserver bounds,
+    // which previously left the page blank below the fixed header.
+    const revealEverything = () => {
+      document.querySelectorAll<HTMLElement>(".reveal").forEach((element) => {
         element.classList.remove("is-hidden");
         element.classList.add("is-visible");
       });
-      return;
-    }
+    };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          entry.target.classList.toggle("is-visible", entry.isIntersecting);
-          entry.target.classList.toggle("is-hidden", !entry.isIntersecting);
-        });
-      },
-      { threshold: 0.08, rootMargin: "40px 0px -20px 0px" },
-    );
+    revealEverything();
+    window.addEventListener("pageshow", revealEverything);
+    window.addEventListener("resize", revealEverything);
+    window.addEventListener("orientationchange", revealEverything);
 
-    elements.forEach((element) => {
-      const bounds = element.getBoundingClientRect();
-      const initiallyVisible = bounds.bottom >= 0 && bounds.top <= window.innerHeight;
-      element.classList.toggle("is-visible", initiallyVisible);
-      element.classList.toggle("is-hidden", !initiallyVisible);
-      observer.observe(element);
-    });
-
-    return () => observer.disconnect();
+    return () => {
+      window.removeEventListener("pageshow", revealEverything);
+      window.removeEventListener("resize", revealEverything);
+      window.removeEventListener("orientationchange", revealEverything);
+    };
   }, [filteredRows.length, user, formOpen, detailsRow, importOpen]);
 
   const handleAuth = async (event: FormEvent) => {
@@ -709,57 +721,114 @@ export default function Home() {
     setImportSummary(null);
     setImportProgress({ current: 0, total: importRows.length });
 
-    const existing = new Set(rows.map((row) => row.specimenNo.trim().toLowerCase()).filter(Boolean));
-    const seen = new Set<string>();
+    const existingBySpecimenNo = new Map<string, SpecimenRow>();
+    for (const row of rows) {
+      const normalized = row.specimenNo.trim().toLowerCase();
+      if (!normalized) continue;
+      existingBySpecimenNo.set(normalized, newestSpecimenRow(existingBySpecimenNo.get(normalized), row));
+    }
+
     let added = 0;
-    let duplicates = 0;
+    let updated = 0;
+    let images = 0;
     let failed = 0;
 
     for (let index = 0; index < importRows.length; index += 1) {
       const item = importRows[index];
-      const data = { ...emptySpecimen(), ...item.data };
-      const enteredSpecimenNo = data.specimenNo.trim();
+      const enteredSpecimenNo = item.data.specimenNo.trim();
       const storedSpecimenNo = enteredSpecimenNo || generateAutomaticSpecimenNo(index);
       const normalized = storedSpecimenNo.toLowerCase();
+      let existingRow = enteredSpecimenNo ? existingBySpecimenNo.get(normalized) : undefined;
 
-      if (existing.has(normalized) || seen.has(normalized)) {
-        duplicates += 1;
-        setImportProgress({ current: index + 1, total: importRows.length });
-        continue;
+      if (enteredSpecimenNo && !existingRow) {
+        try {
+          const response = await tablesDB.listRows({
+            databaseId: APPWRITE_DATABASE_ID,
+            tableId: APPWRITE_TABLE_ID,
+            queries: [Query.equal("specimenNo", [storedSpecimenNo]), Query.orderDesc("$updatedAt"), Query.limit(1)],
+            total: false,
+            ttl: 0,
+          });
+          existingRow = response.rows[0] as unknown as SpecimenRow | undefined;
+        } catch {
+          // The local registry map remains the fallback when the lookup is unavailable.
+        }
       }
 
-      data.specimenNo = storedSpecimenNo;
-      const core = buildRecordCore(data, { id: user.$id, name: user.name || user.email, email: user.email }, {});
+      const importedData = existingRow
+        ? mergeImportedSpecimen(parseSpecimenData(existingRow), item.data)
+        : { ...emptySpecimen(), ...item.data };
+      importedData.specimenNo = storedSpecimenNo;
+      const creator = existingRow
+        ? { id: existingRow.createdById, name: existingRow.createdByName, email: existingRow.createdByEmail }
+        : { id: user.$id, name: user.name || user.email, email: user.email };
+      const finalPhotos: PhotoMap = existingRow ? { ...parsePhotoMap(existingRow) } : {};
+      const oldPhotosToDelete = new Set<string>();
+      const uploadedThisRow: string[] = [];
+      let compressedThisRow = 0;
 
       try {
-        await tablesDB.createRow({
-          databaseId: APPWRITE_DATABASE_ID,
-          tableId: APPWRITE_TABLE_ID,
-          rowId: ID.unique(),
-          data: core,
-          permissions: [
-            Permission.read(Role.users()),
-            Permission.update(Role.user(user.$id)),
-            Permission.delete(Role.user(user.$id)),
-          ],
-        });
-        seen.add(normalized);
-        added += 1;
-      } catch (error) {
-        const message = appwriteError(error);
-        if (/unique|duplicate|already exists/i.test(message)) duplicates += 1;
-        else failed += 1;
+        for (const embeddedPhoto of item.photos) {
+          const optimized = await compressSpecimenImage(embeddedPhoto.file);
+          const previousFileId = finalPhotos[embeddedPhoto.slotKey];
+          const uploaded = await storage.createFile({
+            bucketId: APPWRITE_BUCKET_ID,
+            fileId: ID.unique(),
+            file: optimized.file,
+            permissions: sharedPhotoPermissions(),
+          });
+          uploadedThisRow.push(uploaded.$id);
+          if (previousFileId && !previousFileId.startsWith(OFFLINE_PHOTO_PREFIX)) oldPhotosToDelete.add(previousFileId);
+          finalPhotos[embeddedPhoto.slotKey] = uploaded.$id;
+          await cachePhoto(uploaded.$id, optimized.file);
+          compressedThisRow += 1;
+        }
+
+        const core = buildRecordCore(importedData, creator, finalPhotos);
+        let savedRow: SpecimenRow;
+        if (existingRow) {
+          const response = await tablesDB.updateRow({
+            databaseId: APPWRITE_DATABASE_ID,
+            tableId: APPWRITE_TABLE_ID,
+            rowId: existingRow.$id,
+            data: core,
+            permissions: sharedRowPermissions(creator.id),
+          });
+          savedRow = response as unknown as SpecimenRow;
+          updated += 1;
+        } else {
+          const response = await tablesDB.createRow({
+            databaseId: APPWRITE_DATABASE_ID,
+            tableId: APPWRITE_TABLE_ID,
+            rowId: ID.unique(),
+            data: core,
+            permissions: sharedRowPermissions(creator.id),
+          });
+          savedRow = response as unknown as SpecimenRow;
+          added += 1;
+        }
+
+        existingBySpecimenNo.set(normalized, savedRow);
+        images += compressedThisRow;
+        await Promise.allSettled(
+          [...oldPhotosToDelete].map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+        );
+      } catch {
+        failed += 1;
+        await Promise.allSettled(
+          uploadedThisRow.map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+        );
       }
 
       setImportProgress({ current: index + 1, total: importRows.length });
     }
 
-    const summary = { added, duplicates, failed, total: importRows.length };
+    const summary = { added, updated, images, failed, total: importRows.length };
     setImportSummary(summary);
     await loadRows(user.$id);
     showToast({
       type: failed ? "error" : "success",
-      message: `Excel import finished: ${added} added, ${duplicates} duplicate${duplicates === 1 ? "" : "s"} skipped${failed ? `, ${failed} failed` : ""}.`,
+      message: `Excel import finished: ${added} added, ${updated} updated, ${images} embedded image${images === 1 ? "" : "s"} optimized${failed ? `, ${failed} failed` : ""}.`,
     });
     setImportBusy(false);
   };
@@ -844,21 +913,6 @@ export default function Home() {
     }
 
     const enteredSpecimenNo = formData.specimenNo.trim();
-    const normalizedSpecimenNo = enteredSpecimenNo.toLowerCase();
-    const duplicate = enteredSpecimenNo
-      ? rows.find((row) =>
-          row.$id !== editingRow?.$id
-          && row.specimenNo.trim().toLowerCase() === normalizedSpecimenNo,
-        )
-      : undefined;
-
-    if (duplicate) {
-      showToast({
-        type: "error",
-        message: `Specimen ${duplicate.specimenNo} already exists. Open the existing entry instead of adding a duplicate.`,
-      });
-      return;
-    }
 
     if (!isOnline || editingRow?.__offlineStatus) {
       await queueCurrentSave(enteredSpecimenNo);
@@ -878,11 +932,7 @@ export default function Home() {
           bucketId: APPWRITE_BUCKET_ID,
           fileId: ID.unique(),
           file,
-          permissions: [
-            Permission.read(Role.users()),
-            Permission.update(Role.user(user.$id)),
-            Permission.delete(Role.user(user.$id)),
-          ],
+          permissions: sharedPhotoPermissions(),
         });
         uploaded[slot.key] = result.$id;
         await cachePhoto(result.$id, file);
@@ -905,6 +955,7 @@ export default function Home() {
           tableId: APPWRITE_TABLE_ID,
           rowId: editingRow.$id,
           data: core,
+          permissions: sharedRowPermissions(creator.id),
         });
         successMessage = "Every specimen field and photo change was saved.";
       } else {
@@ -913,11 +964,7 @@ export default function Home() {
           tableId: APPWRITE_TABLE_ID,
           rowId: ID.unique(),
           data: core,
-          permissions: [
-            Permission.read(Role.users()),
-            Permission.update(Role.user(user.$id)),
-            Permission.delete(Role.user(user.$id)),
-          ],
+          permissions: sharedRowPermissions(creator.id),
         });
         successMessage = "Specimen added to the registry.";
       }
@@ -934,11 +981,11 @@ export default function Home() {
       await loadRows(user.$id);
     } catch (error) {
       const message = appwriteError(error);
-      const isDuplicate = /unique|duplicate|already exists/i.test(message);
+      const oldUniqueIndexStillActive = /unique|duplicate|already exists/i.test(message);
       showToast({
         type: "error",
-        message: isDuplicate
-          ? `Specimen ${enteredSpecimenNo || "with this generated ID"} already exists in the registry.`
+        message: oldUniqueIndexStillActive
+          ? "The old unique Specimen No. index is still active in Appwrite. Run npm run migrate:shared-editing once, then try again."
           : `Could not save: ${message}`,
       });
     } finally {
@@ -947,7 +994,7 @@ export default function Home() {
   };
 
   const quickStatus = async (row: SpecimenRow, status: string) => {
-    if (!user || row.createdById !== user.$id) return;
+    if (!user) return;
     const data = { ...parseSpecimenData(row), sampleStatus: status };
     const creator = { id: row.createdById, name: row.createdByName, email: row.createdByEmail };
 
@@ -990,6 +1037,7 @@ export default function Home() {
           dataJson: JSON.stringify(data),
           searchText: buildSearchText(data, row.createdByName, row.createdByEmail),
         },
+        permissions: sharedRowPermissions(row.createdById),
       });
       const nextRows = rows.map((item) => item.$id === row.$id ? { ...item, sampleStatus: status, dataJson: JSON.stringify(data), $updatedAt: new Date().toISOString() } : item);
       setRows(nextRows);
@@ -1271,7 +1319,7 @@ export default function Home() {
               const data = parseSpecimenData(row);
               const photos = parsePhotoMap(row);
               const cover = photos.front || photos.dorsal || photos.side || Object.values(photos)[0];
-              const canEdit = row.createdById === user.$id;
+              const canEdit = true;
               const collectorName = data.collectorsName?.trim() || "Collector not recorded";
               const collectorInitial = data.collectorsName?.trim().slice(0, 1).toUpperCase() || "C";
               return (
@@ -1361,7 +1409,7 @@ export default function Home() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-panel import-panel">
             <div className="modal-header">
-              <div><p className="eyebrow">Bulk registry entry</p><h2>Import specimen records from Excel</h2><p>Every imported record is attributed to your account. Duplicate Specimen No. values are skipped, and all imported fields remain editable afterward.</p></div>
+              <div><p className="eyebrow">Bulk registry entry</p><h2>Import or update specimen records from Excel</h2><p>A matching Specimen No. updates the newest existing record. Blank spreadsheet cells keep the existing value. Embedded worksheet images are compressed before upload. Rows without a match create new records.</p></div>
               <button type="button" className="icon-button" onClick={() => setImportOpen(false)} disabled={importBusy}><X /></button>
             </div>
             <div className="import-scroll">
@@ -1369,23 +1417,24 @@ export default function Home() {
                 <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => void analyzeImportFile(event.target.files?.[0])} disabled={importBusy} />
                 {importBusy && !importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}
                 <strong>{importFileName || "Choose an .xlsx workbook"}</strong>
-                <span>Use a normal table with one specimen per row. Blank cells are allowed.</span>
+                <span>Use one specimen per row. Embedded images should sit on the same row as their specimen.</span>
               </label>
 
               {importRows.length > 0 && (
                 <>
                   <div className="import-metrics">
                     <article><ListChecks /><strong>{importPlan.total}</strong><span>Rows found</span></article>
-                    <article><Check /><strong>{importPlan.importable}</strong><span>Ready to add</span></article>
-                    <article><AlertTriangle /><strong>{importPlan.duplicates}</strong><span>Duplicates skipped</span></article>
+                    <article><Plus /><strong>{importPlan.additions}</strong><span>New records</span></article>
+                    <article><RefreshCw /><strong>{importPlan.updates}</strong><span>Existing updates</span></article>
+                    <article><ImagePlus /><strong>{importPlan.images}</strong><span>Embedded images</span></article>
                     <article><Sparkles /><strong>{importPlan.generatedIds}</strong><span>Automatic IDs</span></article>
                   </div>
                   <div className="import-preview">
                     <div className="import-preview-heading"><h3>Preview</h3><span>Showing the first {Math.min(importRows.length, 8)} rows</span></div>
                     <div className="import-preview-table">
-                      <div className="import-preview-row header"><span>Specimen No.</span><span>Identification</span><span>Collection date</span><span>Source</span></div>
+                      <div className="import-preview-row header"><span>Specimen No.</span><span>Identification</span><span>Collection date</span><span>Images</span><span>Source</span></div>
                       {importRows.slice(0, 8).map((item, index) => (
-                        <div className="import-preview-row" key={`${item.sourceSheet}-${item.sourceRow}-${index}`}><span>{item.data.specimenNo || "Automatic ID"}</span><span><em>{displayScientificName(item.data)}</em></span><span>{item.data.dateCollection || "—"}</span><span>{item.sourceSheet}, row {item.sourceRow}</span></div>
+                        <div className="import-preview-row" key={`${item.sourceSheet}-${item.sourceRow}-${index}`}><span>{item.data.specimenNo || "Automatic ID"}</span><span><em>{displayScientificName(item.data)}</em></span><span>{item.data.dateCollection || "—"}</span><span>{item.photos.length || "—"}</span><span>{item.sourceSheet}, row {item.sourceRow}</span></div>
                       ))}
                     </div>
                   </div>
@@ -1395,14 +1444,14 @@ export default function Home() {
               {importWarnings.length > 0 && <div className="import-warnings"><AlertTriangle /> <div>{importWarnings.map((warning) => <p key={warning}>{warning}</p>)}</div></div>}
 
               {importProgress.total > 0 && importBusy && (
-                <div className="import-progress"><div><span>Importing records</span><strong>{importProgress.current} / {importProgress.total}</strong></div><progress value={importProgress.current} max={importProgress.total} /></div>
+                <div className="import-progress"><div><span>Importing records and optimizing images</span><strong>{importProgress.current} / {importProgress.total}</strong></div><progress value={importProgress.current} max={importProgress.total} /></div>
               )}
 
               {importSummary && (
-                <div className="import-result"><Check /><div><h3>Import complete</h3><p><strong>{importSummary.added}</strong> added · <strong>{importSummary.duplicates}</strong> duplicates skipped · <strong>{importSummary.failed}</strong> failed</p></div></div>
+                <div className="import-result"><Check /><div><h3>Import complete</h3><p><strong>{importSummary.added}</strong> added · <strong>{importSummary.updated}</strong> updated · <strong>{importSummary.images}</strong> images optimized · <strong>{importSummary.failed}</strong> failed</p></div></div>
               )}
             </div>
-            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setImportOpen(false)} disabled={importBusy}>{importSummary ? "Close" : "Cancel"}</button><button type="button" className="primary-button" onClick={() => void importExcelRows()} disabled={importBusy || importPlan.importable === 0}>{importBusy && importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}{importBusy && importProgress.total ? "Importing…" : `Import ${importPlan.importable} record${importPlan.importable === 1 ? "" : "s"}`}</button></div>
+            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setImportOpen(false)} disabled={importBusy}>{importSummary ? "Close" : "Cancel"}</button><button type="button" className="primary-button" onClick={() => void importExcelRows()} disabled={importBusy || importPlan.total === 0}>{importBusy && importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}{importBusy && importProgress.total ? "Importing…" : `Import ${importPlan.total} record${importPlan.total === 1 ? "" : "s"}`}</button></div>
           </div>
         </div>
       )}
@@ -1410,7 +1459,8 @@ export default function Home() {
       {detailsRow && (() => {
         const data = parseSpecimenData(detailsRow);
         const photos = parsePhotoMap(detailsRow);
-        const canEdit = detailsRow.createdById === user.$id;
+        const canEdit = true;
+        const canDelete = detailsRow.createdById === user.$id;
         const related = rows.filter((row) => row.$id !== detailsRow.$id && row.family && row.family.toLowerCase() === detailsRow.family?.toLowerCase()).slice(0, 4);
         return (
           <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -1427,9 +1477,9 @@ export default function Home() {
                   ))}
                   <section className="detail-group suggestions"><h3><Sparkles /> Related-family and predator suggestions</h3><div className="suggestion-grid"><article><Leaf /><span>Related family records</span>{related.length ? <div className="related-list">{related.map((row) => <button key={row.$id} onClick={() => setDetailsRow(row)}><strong>{row.specimenNo}</strong><em>{displayScientificName(parseSpecimenData(row))}</em></button>)}</div> : <p>No other specimen from <strong>{data.family || "this family"}</strong> has been recorded yet.</p>}</article><article><Bug /><span>Possible predator</span><p>{data.possiblePredator || "No supported predator relationship has been entered. Add one only after observation or verification."}</p><small>Suggestion data should be reviewed by a qualified taxonomist or pest-management specialist.</small></article></div></section>
                 </div>
-                <section className="status-editor"><div><h3>Update specimen status</h3><p>{canEdit ? "As the contributor, you can toggle this record's current status." : "Only the original contributor can change this record."}</p></div><div className="status-options">{SAMPLE_STATUSES.map((status) => <button key={status} disabled={!canEdit} className={detailsRow.sampleStatus === status ? "active" : ""} onClick={() => quickStatus(detailsRow, status)}>{detailsRow.sampleStatus === status && <Check />}{status}</button>)}</div></section>
+                <section className="status-editor"><div><h3>Update specimen status</h3><p>Every signed-in member can update this record and its current status.</p></div><div className="status-options">{SAMPLE_STATUSES.map((status) => <button key={status} disabled={!canEdit} className={detailsRow.sampleStatus === status ? "active" : ""} onClick={() => quickStatus(detailsRow, status)}>{detailsRow.sampleStatus === status && <Check />}{status}</button>)}</div></section>
               </div>
-              <div className="modal-footer"><button className="ghost-button" onClick={() => setDetailsRow(null)}>Close</button>{canEdit && <><button className="danger-button" onClick={() => deleteRow(detailsRow)}><Trash2 /> Delete</button><button className="primary-button" onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button></>}</div>
+              <div className="modal-footer"><button className="ghost-button" onClick={() => setDetailsRow(null)}>Close</button>{canDelete && <button className="danger-button" onClick={() => deleteRow(detailsRow)}><Trash2 /> Delete</button>}<button className="primary-button" onClick={() => openEditForm(detailsRow)}><Edit3 /> Edit all fields</button></div>
             </div>
           </div>
         );
