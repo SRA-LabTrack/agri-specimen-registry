@@ -1,4 +1,4 @@
-# AgriSpecimen Registry Desktop
+# AgriRegistry Desktop
 
 The Electron desktop application securely loads the production registry from:
 

@@ -5,11 +5,8 @@ import BrandSplash from "./brand-splash";
 import ServiceWorkerRegister from "./service-worker-register";
 
 export const metadata: Metadata = {
-  title: {
-    default: "AgriRegistry",
-    template: "%s | AgriRegistry",
-  },
-  description: "A searchable agricultural registry for microbes, isolates, invertebrates, specimens, photographs, and verification history.",
+  title: { default: "AgriRegistry", template: "%s | AgriRegistry" },
+  description: "A searchable agricultural biodiversity registry for specimen records, photographs, and verification history.",
   applicationName: "AgriRegistry",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -22,13 +19,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <html lang="en">
-      <body>
-        <ServiceWorkerRegister />
-        <BrandSplash />
-        {children}
-      </body>
-    </html>
-  );
+  return <html lang="en"><body><ServiceWorkerRegister /><BrandSplash />{children}</body></html>;
 }

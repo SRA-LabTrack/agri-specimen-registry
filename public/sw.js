@@ -1,4 +1,4 @@
-const VERSION = "agriregistry-branding-splash-v2";
+const VERSION = "agriregistry-force-brand-20260731";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

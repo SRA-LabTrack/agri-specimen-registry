@@ -9,8 +9,8 @@ export default function BrandSplash() {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const closeDelay = reducedMotion ? 500 : 2100;
-    const hideDelay = reducedMotion ? 800 : 2700;
+    const closeDelay = reducedMotion ? 450 : 1800;
+    const hideDelay = reducedMotion ? 700 : 2350;
 
     document.body.classList.add("agriregistry-splash-open");
 
@@ -43,17 +43,12 @@ export default function BrandSplash() {
       <div className="agriregistry-splash-card">
         <div className="agriregistry-splash-logo-surface">
           <img
-            src="/agriregistry-logo.png"
-            alt="AgriSpecimen Registry, powered by Luntian"
+            src="/agriregistry-logo.png?v=20260731"
+            alt="AgriRegistry, powered by Luntian"
             className="agriregistry-splash-logo"
           />
         </div>
-
-        <p>Microbes <span>â€¢</span> isolates <span>â€¢</span> invertebrates</p>
-
-        <div className="agriregistry-splash-progress" aria-hidden="true">
-          <span />
-        </div>
+        <div className="agriregistry-splash-progress" aria-hidden="true"><span /></div>
       </div>
     </div>
   );

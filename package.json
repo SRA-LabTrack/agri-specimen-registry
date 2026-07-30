@@ -1,77 +1,77 @@
 {
-  "name": "agri-specimen-registry",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "setup:appwrite": "node scripts/setup-appwrite.mjs",
-    "migrate:shared-editing": "node scripts/migrate-shared-editing.mjs",
-    "desktop": "electron .",
-    "desktop:unpacked": "electron-builder --dir --win --x64",
-    "desktop:build": "electron-builder --win --x64"
-  },
-  "dependencies": {
-    "appwrite": "26.2.0",
-    "fflate": "0.8.3",
-    "html2canvas": "1.4.1",
-    "jspdf": "4.2.1",
-    "lucide-react": "1.25.0",
-    "next": "16.2.10",
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
-  },
-  "devDependencies": {
-    "@types/node": "^22.15.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "electron": "^43.2.0",
-    "electron-builder": "^26.15.3",
-    "eslint": "^9.0.0",
-    "eslint-config-next": "16.2.10",
-    "node-appwrite": "27.0.0",
-    "typescript": "^5.9.0"
-  },
-  "main": "electron/main.cjs",
-  "build": {
-    "appId": "com.luntian.agrispecimen",
-    "productName": "AgriRegistry",
-    "asar": true,
-    "compression": "maximum",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "files": [
-      "electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "AgriRegistry-Setup-${version}-${arch}.${ext}",
-      "icon": "electron/assets/agriregistry-icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "AgriRegistry",
-      "uninstallDisplayName": "AgriRegistry",
-      "installerIcon": "electron/assets/agriregistry-icon.ico",
-      "uninstallerIcon": "electron/assets/agriregistry-icon.ico",
-      "installerHeaderIcon": "electron/assets/agriregistry-icon.ico"
-    }
-  },
-  "allowScripts": {
-    "electron@43.2.0": true
-  }
+    "name":  "agri-specimen-registry",
+    "version":  "1.0.4",
+    "private":  true,
+    "scripts":  {
+                    "dev":  "next dev",
+                    "build":  "next build",
+                    "start":  "next start",
+                    "lint":  "eslint .",
+                    "setup:appwrite":  "node scripts/setup-appwrite.mjs",
+                    "migrate:shared-editing":  "node scripts/migrate-shared-editing.mjs",
+                    "desktop":  "electron .",
+                    "desktop:unpacked":  "electron-builder --dir --win --x64",
+                    "desktop:build":  "electron-builder --win --x64"
+                },
+    "dependencies":  {
+                         "appwrite":  "26.2.0",
+                         "fflate":  "0.8.3",
+                         "html2canvas":  "1.4.1",
+                         "jspdf":  "4.2.1",
+                         "lucide-react":  "1.25.0",
+                         "next":  "16.2.10",
+                         "react":  "19.2.7",
+                         "react-dom":  "19.2.7"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^22.15.0",
+                            "@types/react":  "^19.1.0",
+                            "@types/react-dom":  "^19.1.0",
+                            "electron":  "^43.2.0",
+                            "electron-builder":  "^26.15.3",
+                            "eslint":  "^9.0.0",
+                            "eslint-config-next":  "16.2.10",
+                            "node-appwrite":  "27.0.0",
+                            "typescript":  "^5.9.0"
+                        },
+    "main":  "electron/main.cjs",
+    "build":  {
+                  "appId":  "com.luntian.agrispecimen",
+                  "productName":  "AgriRegistry",
+                  "asar":  true,
+                  "compression":  "maximum",
+                  "directories":  {
+                                      "output":  "dist-electron"
+                                  },
+                  "files":  [
+                                "electron/**/*",
+                                "package.json"
+                            ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ],
+                              "artifactName":  "AgriRegistry-Setup-${version}-${arch}.${ext}",
+                              "icon":  "electron/assets/agriregistry-icon.ico"
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true,
+                               "shortcutName":  "AgriRegistry",
+                               "uninstallDisplayName":  "AgriRegistry",
+                               "installerIcon":  "electron/assets/agriregistry-icon.ico",
+                               "uninstallerIcon":  "electron/assets/agriregistry-icon.ico",
+                               "installerHeaderIcon":  "electron/assets/agriregistry-icon.ico"
+                           }
+              },
+    "allowScripts":  {
+                         "electron@43.2.0":  true
+                     }
 }

@@ -1,17 +1,17 @@
 {
-  "name": "AgriRegistry",
-  "short_name": "AgriRegistry",
-  "description": "Agricultural registry for microbes, isolates, invertebrates, and specimen records.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#071d14",
-  "theme_color": "#1f6a43",
-  "icons": [
-    {
-      "src": "/agriregistry-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+    "name":  "AgriRegistry",
+    "short_name":  "AgriRegistry",
+    "description":  "Agricultural biodiversity registry for specimen records, photographs, and verification history.",
+    "start_url":  "/",
+    "display":  "standalone",
+    "background_color":  "#071d14",
+    "theme_color":  "#1f6a43",
+    "icons":  [
+                  {
+                      "src":  "/agriregistry-icon.png",
+                      "sizes":  "512x512",
+                      "type":  "image/png",
+                      "purpose":  "any maskable"
+                  }
+              ]
 }

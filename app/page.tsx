@@ -1361,8 +1361,8 @@ export default function Home() {
           <div className="brand-mark auth-brand agriregistry-auth-brand">
             <span className="agriregistry-logo-surface">
               <img
-                src="/agriregistry-logo.png"
-                alt="AgriSpecimen Registry, powered by Luntian"
+                src="/agriregistry-logo.png?v=20260731"
+                alt="AgriRegistry, powered by Luntian"
                 className="agriregistry-logo agriregistry-auth-logo"
               />
             </span>
@@ -1414,7 +1414,7 @@ export default function Home() {
         >
           <span className="agriregistry-logo-surface agriregistry-logo-surface-compact">
             <img
-              src="/agriregistry-logo.png"
+              src="/agriregistry-logo.png?v=20260731"
               alt=""
               className="agriregistry-logo agriregistry-topbar-logo"
             />
@@ -1510,8 +1510,8 @@ export default function Home() {
       <footer className="agriregistry-footer">
         <span className="agriregistry-logo-surface agriregistry-footer-logo-surface">
           <img
-            src="/agriregistry-logo.png"
-            alt="AgriSpecimen Registry, powered by Luntian"
+            src="/agriregistry-logo.png?v=20260731"
+            alt="AgriRegistry, powered by Luntian"
             className="agriregistry-logo agriregistry-footer-logo"
           />
         </span>
