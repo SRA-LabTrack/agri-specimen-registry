@@ -1,4 +1,4 @@
-const VERSION = "agrispecimen-electron-photo-blob-v2";
+const VERSION = "agrispecimen-electron-appwrite-photo-auth-v3";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

@@ -44,6 +44,7 @@ import {
   APPWRITE_TABLE_ID,
   account,
   appwriteConfigured,
+  client,
   storage,
   tablesDB,
 } from "@/lib/appwrite";
@@ -62,7 +63,6 @@ import { compressSpecimenImage, formatFileSize, type ImageCompressionResult } fr
 import {
   OFFLINE_PHOTO_PREFIX,
   cachePhoto,
-  cachePhotoFromUrl,
   cacheRows,
   cacheUser,
   clearOfflineAccountData,
@@ -188,28 +188,107 @@ function createOfflineSnapshot(
   } as SpecimenRow;
 }
 
-function remotePhotoPreview(fileId: string): string {
-  return String(storage.getFilePreview({
+function remotePhotoView(fileId: string): string {
+  return String(storage.getFileView({
     bucketId: APPWRITE_BUCKET_ID,
     fileId,
-    width: 1400,
-    height: 1000,
-    quality: 88,
   }));
 }
 
+function appwritePhotoHeaders(): Record<string, string> {
+  const headers = {
+    ...(client.getHeaders() as Record<string, string>),
+  };
+
+  if (typeof window !== "undefined") {
+    const fallbackCookie = window.localStorage.getItem("cookieFallback");
+    if (fallbackCookie) {
+      headers["X-Fallback-Cookies"] = fallbackCookie;
+    }
+  }
+
+  return headers;
+}
+
+async function normalizeRemotePhotoBlob(blob: Blob): Promise<Blob> {
+  if (blob.type.startsWith("image/")) return blob;
+
+  const bytes = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  const ascii = String.fromCharCode(...bytes);
+  let type = "";
+
+  if (
+    bytes[0] === 0x89
+    && bytes[1] === 0x50
+    && bytes[2] === 0x4e
+    && bytes[3] === 0x47
+  ) {
+    type = "image/png";
+  } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    type = "image/jpeg";
+  } else if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) {
+    type = "image/gif";
+  } else if (
+    ascii.slice(0, 4) === "RIFF"
+    && ascii.slice(8, 12) === "WEBP"
+  ) {
+    type = "image/webp";
+  }
+
+  if (!type) {
+    throw new Error("Appwrite returned data that is not a supported specimen image.");
+  }
+
+  return new Blob([blob], { type });
+}
+
+async function fetchRemotePhotoBlob(fileId: string): Promise<Blob> {
+  const response = await fetch(remotePhotoView(fileId), {
+    credentials: "include",
+    cache: "no-store",
+    headers: appwritePhotoHeaders(),
+  });
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = (await response.text()).slice(0, 180).replace(/\s+/g, " ");
+    } catch {
+      // Keep the HTTP status as the useful error when no body can be read.
+    }
+
+    throw new Error(
+      `Photo request failed with status ${response.status}${detail ? `: ${detail}` : ""}.`,
+    );
+  }
+
+  const blob = await response.blob();
+  if (!blob.size) throw new Error("The Appwrite photo response was empty.");
+  return normalizeRemotePhotoBlob(blob);
+}
+
 async function warmRegistryPhotoCache(rows: SpecimenRow[]): Promise<void> {
-  const ids = [...new Set(rows.flatMap((row) => Object.values(parsePhotoMap(row)) as string[]))]
+  const ids = [...new Set(
+    rows.flatMap((row) => Object.values(parsePhotoMap(row)) as string[]),
+  )]
     .filter((id) => id && !id.startsWith(OFFLINE_PHOTO_PREFIX))
-    .slice(0, 150);
+    .slice(0, 500);
+
   let cursor = 0;
-  const workers = Array.from({ length: 3 }, async () => {
+  const workers = Array.from({ length: 4 }, async () => {
     while (cursor < ids.length) {
-      const id = ids[cursor];
+      const fileId = ids[cursor];
       cursor += 1;
-      await cachePhotoFromUrl(id, remotePhotoPreview(id));
+
+      try {
+        const blob = await fetchRemotePhotoBlob(fileId);
+        await cachePhoto(fileId, blob);
+      } catch (error) {
+        console.error("Could not warm specimen photo cache", { fileId, error });
+      }
     }
   });
+
   await Promise.all(workers);
 }
 
@@ -282,18 +361,7 @@ function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: stri
       }
 
       try {
-        const response = await fetch(remotePhotoPreview(fileId), {
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Photo request failed with status ${response.status}.`);
-        }
-
-        const blob = await response.blob();
-        if (!blob.size) throw new Error("The photo response was empty.");
-
+        const blob = await fetchRemotePhotoBlob(fileId);
         await cachePhoto(fileId, blob);
         useBlob(blob);
       } catch (error) {
