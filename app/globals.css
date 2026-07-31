@@ -1939,3 +1939,188 @@ body::before {
   }
 }
 /* AGRIREGISTRY DESKTOP EXIT V7 END */
+
+/* AGRIREGISTRY AUTO UPDATE V9 START */
+.desktop-update-banner {
+  position: sticky;
+  top: max(10px, env(safe-area-inset-top));
+  z-index: 5000;
+  width: min(1040px, calc(100% - 24px));
+  margin: 10px auto 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, .94);
+  border-radius: 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  color: #123b24;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(62, 157, 76, .28), transparent 34%),
+    linear-gradient(120deg, rgba(224, 246, 218, .98), rgba(255, 255, 255, .98) 55%, rgba(211, 238, 207, .98));
+  box-shadow:
+    0 18px 44px rgba(20, 86, 44, .2),
+    inset 0 1px rgba(255, 255, 255, .92);
+  backdrop-filter: blur(20px);
+}
+
+.desktop-update-banner.error {
+  background:
+    radial-gradient(circle at 8% 20%, rgba(203, 102, 46, .18), transparent 34%),
+    linear-gradient(120deg, rgba(255, 244, 231, .98), rgba(255, 255, 255, .98) 58%, rgba(237, 248, 229, .98));
+}
+
+.desktop-update-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #2d8d4e, #0e5c31);
+  box-shadow: 0 10px 24px rgba(19, 91, 45, .24);
+}
+
+.desktop-update-banner.error .desktop-update-icon {
+  background: linear-gradient(145deg, #c97633, #8f3f19);
+}
+
+.desktop-update-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.desktop-update-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.desktop-update-copy strong {
+  color: #0d552d;
+  font-size: clamp(.98rem, 1.8vw, 1.14rem);
+  line-height: 1.2;
+}
+
+.desktop-update-copy > span {
+  overflow-wrap: anywhere;
+  color: #446653;
+  font-size: .91rem;
+  line-height: 1.35;
+}
+
+.desktop-update-progress {
+  width: min(540px, 100%);
+  height: 7px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(17, 91, 47, .13);
+}
+
+.desktop-update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #43a85a, #0f6b37);
+  transition: width .25s ease;
+}
+
+.desktop-update-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.desktop-update-actions button,
+.desktop-update-check-button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.desktop-update-primary {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2c8b4d, #115f34);
+  box-shadow: 0 9px 20px rgba(16, 91, 47, .2);
+}
+
+.desktop-update-later {
+  border: 1px solid rgba(19, 89, 45, .16);
+  color: #174b2d;
+  background: rgba(255, 255, 255, .8);
+}
+
+.desktop-update-check-button {
+  border: 1px solid rgba(22, 97, 50, .17);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #1b6138;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .95), rgba(222, 243, 216, .94));
+}
+
+.desktop-update-check-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dashboard-shell:has(> .desktop-update-banner) > .topbar {
+  top: 98px;
+}
+
+@media (max-width: 780px) {
+  .desktop-update-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    border-radius: 18px;
+  }
+
+  .desktop-update-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .desktop-update-actions button {
+    flex: 1;
+  }
+
+  .desktop-update-check-button {
+    width: 100%;
+  }
+
+  .dashboard-shell:has(> .desktop-update-banner) > .topbar {
+    top: 154px;
+  }
+}
+
+@media (max-width: 480px) {
+  .desktop-update-banner {
+    width: calc(100% - 16px);
+    margin-top: 8px;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .desktop-update-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+  }
+
+  .desktop-update-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-shell:has(> .desktop-update-banner) > .topbar {
+    top: 214px;
+  }
+}
+/* AGRIREGISTRY AUTO UPDATE V9 END */

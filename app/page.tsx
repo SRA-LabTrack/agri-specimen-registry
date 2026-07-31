@@ -406,6 +406,167 @@ function PhotoImage({ fileId, alt, className = "" }: { fileId: string; alt: stri
   );
 }
 
+
+// AGRIREGISTRY_AUTO_UPDATE_V9_COMPONENT
+function DesktopUpdateBanner() {
+  const [updateState, setUpdateState] =
+    useState<AgriRegistryUpdateState | null>(null);
+  const [dismissedVersion, setDismissedVersion] = useState("");
+
+  useEffect(() => {
+    const desktop = window.agriregistryDesktop;
+    if (!desktop) return;
+
+    let active = true;
+
+    void desktop.getUpdateState().then((state) => {
+      if (active) setUpdateState(state);
+    });
+
+    const dispose = desktop.onUpdateState((state) => {
+      if (active) {
+        setUpdateState(state);
+        if (state.status === "downloaded") {
+          setDismissedVersion("");
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      if (typeof dispose === "function") dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (updateState?.status !== "up-to-date") return;
+
+    const timer = window.setTimeout(() => {
+      setDismissedVersion(
+        updateState.availableVersion
+          || updateState.currentVersion
+          || "up-to-date",
+      );
+    }, 3600);
+
+    return () => window.clearTimeout(timer);
+  }, [updateState]);
+
+  if (!updateState?.showBanner || !window.agriregistryDesktop) {
+    return null;
+  }
+
+  const versionKey =
+    updateState.availableVersion
+    || updateState.currentVersion
+    || updateState.status;
+
+  if (
+    dismissedVersion === versionKey
+    && updateState.status !== "downloaded"
+  ) {
+    return null;
+  }
+
+  const percent = Math.max(
+    0,
+    Math.min(100, updateState.percent || 0),
+  );
+
+  const title =
+    updateState.status === "available"
+      ? `AgriRegistry ${updateState.availableVersion} is available`
+      : updateState.status === "downloading"
+        ? `Downloading AgriRegistry ${updateState.availableVersion || ""}`.trim()
+        : updateState.status === "downloaded"
+          ? `AgriRegistry ${updateState.availableVersion} is ready`
+          : updateState.status === "up-to-date"
+            ? "AgriRegistry is up to date"
+            : updateState.status === "error"
+              ? "The update could not be completed"
+              : "Checking for updates";
+
+  const icon =
+    updateState.status === "error"
+      ? <AlertTriangle />
+      : updateState.status === "downloaded"
+        || updateState.status === "up-to-date"
+        ? <Check />
+        : updateState.status === "downloading"
+          || updateState.status === "checking"
+          ? <LoaderCircle className="spin" />
+          : <Cloud />;
+
+  const runPrimaryAction = () => {
+    const desktop = window.agriregistryDesktop;
+    if (!desktop) return;
+
+    if (updateState.status === "available") {
+      void desktop.downloadUpdate();
+    } else if (updateState.status === "downloaded") {
+      desktop.installUpdate();
+    } else if (updateState.status === "error") {
+      void desktop.checkForUpdates();
+    }
+  };
+
+  const primaryLabel =
+    updateState.status === "available"
+      ? "Update now"
+      : updateState.status === "downloaded"
+        ? "Restart and install"
+        : updateState.status === "error"
+          ? "Try again"
+          : "";
+
+  return (
+    <aside
+      className={`desktop-update-banner ${updateState.status}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="desktop-update-icon">{icon}</div>
+
+      <div className="desktop-update-copy">
+        <strong>{title}</strong>
+        <span>
+          {updateState.message
+            || "A newer desktop version is available."}
+        </span>
+
+        {updateState.status === "downloading" && (
+          <div
+            className="desktop-update-progress"
+            aria-label={`Update download ${Math.round(percent)} percent`}
+          >
+            <span style={{ width: `${percent}%` }} />
+          </div>
+        )}
+      </div>
+
+      <div className="desktop-update-actions">
+        {primaryLabel && (
+          <button
+            className="desktop-update-primary"
+            type="button"
+            onClick={runPrimaryAction}
+          >
+            {primaryLabel}
+          </button>
+        )}
+
+        <button
+          className="desktop-update-later"
+          type="button"
+          onClick={() => setDismissedVersion(versionKey)}
+        >
+          {updateState.status === "downloaded" ? "Install later" : "Later"}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 export default function Home() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(appwriteConfigured);
@@ -465,6 +626,11 @@ export default function Home() {
     }
 
     if (!window.confirm("Exit AgriRegistry?")) return;
+    if (window.agriregistryDesktop) {
+      window.agriregistryDesktop.exitApp();
+      return;
+    }
+
     window.location.href = "agriregistry://exit";
   };
 
@@ -1378,6 +1544,8 @@ export default function Home() {
   if (!user) {
     return (
       <main className="auth-page">
+        {/* AGRIREGISTRY_AUTO_UPDATE_V9_AUTH_BANNER */}
+        <DesktopUpdateBanner />
         <div className="field-glow field-glow-one" />
         <div className="field-glow field-glow-two" />
         <section className="auth-intro reveal is-visible">
@@ -1432,6 +1600,8 @@ export default function Home() {
 
   return (
     <main className="dashboard-shell">
+      {/* AGRIREGISTRY_AUTO_UPDATE_V9_DASHBOARD_BANNER */}
+      <DesktopUpdateBanner />
       <div className="field-glow field-glow-one" />
       <div className="field-glow field-glow-two" />
       <header className="glass topbar">
@@ -1466,6 +1636,21 @@ export default function Home() {
             {syncing ? <LoaderCircle className="spin" /> : isOnline ? <Cloud /> : <CloudOff />}
             <span><strong>{syncing ? "Syncing" : isOnline ? pendingCount ? `${pendingCount} pending` : "Online" : "Offline"}</strong><small>{isOnline ? pendingCount ? "Tap to sync" : "Offline copy ready" : `${pendingCount} waiting`}</small></span>
           </button>
+          {/* AGRIREGISTRY_AUTO_UPDATE_V9_CHECK_BUTTON */}
+          {isDesktopApp && (
+            <button
+              className="desktop-update-check-button"
+              type="button"
+              onClick={() => {
+                void window.agriregistryDesktop?.checkForUpdates();
+              }}
+              title="Check for AgriRegistry updates"
+              aria-label="Check for AgriRegistry updates"
+            >
+              <RefreshCw />
+              <span>Updates</span>
+            </button>
+          )}
           {/* AGRIREGISTRY_DESKTOP_EXIT_V7_BUTTON */}
           {isDesktopApp && (
             <button

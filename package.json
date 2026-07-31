@@ -1,6 +1,6 @@
 {
   "name": "agri-specimen-registry",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,10 +11,12 @@
     "migrate:shared-editing": "node scripts/migrate-shared-editing.mjs",
     "desktop": "electron .",
     "desktop:unpacked": "electron-builder --dir --win --x64",
-    "desktop:build": "electron-builder --win --x64"
+    "desktop:build": "electron-builder --win --x64",
+    "desktop:publish": "electron-builder --win --x64 --publish always"
   },
   "dependencies": {
     "appwrite": "26.2.0",
+    "electron-updater": "6.8.9",
     "fflate": "0.8.3",
     "html2canvas": "1.4.1",
     "jspdf": "4.2.1",
@@ -69,7 +71,16 @@
       "installerIcon": "electron/assets/agriregistry-icon.ico",
       "uninstallerIcon": "electron/assets/agriregistry-icon.ico",
       "installerHeaderIcon": "electron/assets/agriregistry-icon.ico"
-    }
+    },
+    "electronUpdaterCompatibility": ">=2.16",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SRA-LabTrack",
+        "repo": "agri-specimen-registry",
+        "releaseType": "release"
+      }
+    ]
   },
   "allowScripts": {
     "electron@43.2.0": true

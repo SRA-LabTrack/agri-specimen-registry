@@ -1,0 +1,8 @@
+{
+  "configured": true,
+  "setupVersion": "1.0.7",
+  "provider": "github",
+  "owner": "SRA-LabTrack",
+  "repository": "agri-specimen-registry",
+  "checkIntervalHours": 6
+}

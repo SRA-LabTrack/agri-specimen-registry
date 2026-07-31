@@ -1,5 +1,8 @@
-const { app, BrowserWindow, session, shell, screen } = require("electron");
+const { app, BrowserWindow, session, shell, screen, ipcMain } = require("electron");
 const path = require("path");
+// AGRIREGISTRY_AUTO_UPDATE_V9_IMPORT
+const electronUpdater = require("electron-updater");
+const { autoUpdater } = electronUpdater;
 
 const APP_URL =
   process.env.AGRISPECIMEN_APP_URL ||
@@ -10,12 +13,226 @@ const PARTITION = "persist:agrispecimen-registry";
 const APP_ID = "com.luntian.agrispecimen";
 const ICON_PATH = path.join(__dirname, "assets", "agriregistry-icon.ico");
 const SPLASH_PATH = path.join(__dirname, "splash.html");
+// AGRIREGISTRY_AUTO_UPDATE_V9_CONSTANTS
+const PRELOAD_PATH = path.join(__dirname, "preload.cjs");
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const MINIMUM_SPLASH_TIME_MS = 1800;
 
 let mainWindow = null;
 let splashWindow = null;
 let loadingFallback = false;
 let splashStartedAt = 0;
+
+// AGRIREGISTRY_AUTO_UPDATE_V9_CORE
+let lastUpdateCheckWasManual = false;
+let updateDownloadStarted = false;
+let updateState = {
+  status: "idle",
+  currentVersion: app.getVersion(),
+  showBanner: false,
+};
+
+function broadcastUpdateState(patch = {}) {
+  updateState = {
+    ...updateState,
+    ...patch,
+    currentVersion: app.getVersion(),
+  };
+
+  if (
+    mainWindow
+    && !mainWindow.isDestroyed()
+    && !mainWindow.webContents.isDestroyed()
+  ) {
+    mainWindow.webContents.send(
+      "agriregistry:update:state",
+      updateState,
+    );
+  }
+
+  return updateState;
+}
+
+function updaterErrorMessage(error) {
+  const message =
+    error && typeof error.message === "string"
+      ? error.message
+      : String(error || "Unknown update error");
+
+  return message
+    .replace(/https?:\/\/[^\s]+/g, "the update server")
+    .slice(0, 280);
+}
+
+async function checkForDesktopUpdates(manual = false) {
+  lastUpdateCheckWasManual = manual;
+
+  if (!app.isPackaged) {
+    return broadcastUpdateState({
+      status: "disabled",
+      message: "Updates are checked in the installed application.",
+      showBanner: manual,
+    });
+  }
+
+  broadcastUpdateState({
+    status: "checking",
+    message: "Checking for a newer AgriRegistry version...",
+    showBanner: manual,
+  });
+
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    broadcastUpdateState({
+      status: manual ? "error" : "idle",
+      message: manual ? updaterErrorMessage(error) : "",
+      showBanner: manual,
+    });
+  }
+
+  return updateState;
+}
+
+function configureAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on("checking-for-update", () => {
+    broadcastUpdateState({
+      status: "checking",
+      message: "Checking for a newer AgriRegistry version...",
+      showBanner: lastUpdateCheckWasManual,
+    });
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    updateDownloadStarted = false;
+    broadcastUpdateState({
+      status: "available",
+      availableVersion: info.version,
+      percent: 0,
+      message: `AgriRegistry ${info.version} is ready to download.`,
+      showBanner: true,
+    });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    broadcastUpdateState({
+      status: "up-to-date",
+      availableVersion: undefined,
+      percent: 100,
+      message: `AgriRegistry ${app.getVersion()} is up to date.`,
+      showBanner: lastUpdateCheckWasManual,
+    });
+
+    lastUpdateCheckWasManual = false;
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    updateDownloadStarted = true;
+    broadcastUpdateState({
+      status: "downloading",
+      percent: Math.max(0, Math.min(100, progress.percent || 0)),
+      message: "Downloading the update...",
+      showBanner: true,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    updateDownloadStarted = false;
+    broadcastUpdateState({
+      status: "downloaded",
+      availableVersion: info.version,
+      percent: 100,
+      message: `AgriRegistry ${info.version} is ready to install.`,
+      showBanner: true,
+    });
+  });
+
+  autoUpdater.on("error", (error) => {
+    const shouldShow = lastUpdateCheckWasManual || updateDownloadStarted;
+
+    broadcastUpdateState({
+      status: shouldShow ? "error" : "idle",
+      message: shouldShow ? updaterErrorMessage(error) : "",
+      showBanner: shouldShow,
+    });
+
+    updateDownloadStarted = false;
+    lastUpdateCheckWasManual = false;
+  });
+
+  ipcMain.handle(
+    "agriregistry:update:get-version",
+    () => app.getVersion(),
+  );
+
+  ipcMain.handle(
+    "agriregistry:update:get-state",
+    () => updateState,
+  );
+
+  ipcMain.handle(
+    "agriregistry:update:check",
+    async () => checkForDesktopUpdates(true),
+  );
+
+  ipcMain.handle(
+    "agriregistry:update:download",
+    async () => {
+      if (!app.isPackaged) {
+        return broadcastUpdateState({
+          status: "disabled",
+          message: "Install AgriRegistry before testing updates.",
+          showBanner: true,
+        });
+      }
+
+      updateDownloadStarted = true;
+      broadcastUpdateState({
+        status: "downloading",
+        percent: 0,
+        message: "Starting the update download...",
+        showBanner: true,
+      });
+
+      try {
+        await autoUpdater.downloadUpdate();
+      } catch (error) {
+        broadcastUpdateState({
+          status: "error",
+          message: updaterErrorMessage(error),
+          showBanner: true,
+        });
+        updateDownloadStarted = false;
+      }
+
+      return updateState;
+    },
+  );
+
+  ipcMain.on("agriregistry:update:install", () => {
+    if (updateState.status === "downloaded") {
+      autoUpdater.quitAndInstall(false, true);
+    }
+  });
+
+  ipcMain.on("agriregistry:app:exit", () => {
+    app.quit();
+  });
+
+  if (app.isPackaged) {
+    setTimeout(() => {
+      void checkForDesktopUpdates(false);
+    }, 5000);
+
+    setInterval(() => {
+      void checkForDesktopUpdates(false);
+    }, UPDATE_CHECK_INTERVAL_MS);
+  }
+}
 
 app.setName("AgriRegistry");
 app.setAppUserModelId(APP_ID);
@@ -161,6 +378,7 @@ function createWindow() {
     backgroundColor: "#dcefd6",
     autoHideMenuBar: true,
     webPreferences: {
+      preload: PRELOAD_PATH,
       partition: PARTITION,
       nodeIntegration: false,
       contextIsolation: true,
@@ -224,6 +442,11 @@ function createWindow() {
     },
   );
 
+  // AGRIREGISTRY_AUTO_UPDATE_V9_FINISH_LOAD
+  mainWindow.webContents.on("did-finish-load", () => {
+    broadcastUpdateState();
+  });
+
   mainWindow.once("ready-to-show", revealMainWindow);
 
   mainWindow.on("closed", () => {
@@ -243,6 +466,8 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(() => {
+  // AGRIREGISTRY_AUTO_UPDATE_V9_READY
+  configureAutoUpdater();
   createSplashWindow();
   createWindow();
 
