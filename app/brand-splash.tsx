@@ -43,11 +43,18 @@ export default function BrandSplash() {
       <div className="agriregistry-splash-card">
         <div className="agriregistry-splash-logo-surface">
           <img
-            src="/agriregistry-logo.png?v=20260731"
-            alt="AgriRegistry, powered by Luntian"
-            className="agriregistry-splash-logo"
+            src="/agriregistry-icon.png?v=20260731-centered-v2"
+            alt=""
+            className="agriregistry-splash-emblem"
+            aria-hidden="true"
           />
+          <div className="agriregistry-splash-copy">
+            <h1>AgriRegistry</h1>
+            <p>Powered by <span>Luntian</span></p>
+          </div>
         </div>
+
+        <p className="agriregistry-loading-label">Loading registry</p>
         <div className="agriregistry-splash-progress" aria-hidden="true"><span /></div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, shell } = require("electron");
+const { app, BrowserWindow, session, shell, screen } = require("electron");
 const path = require("path");
 
 const APP_URL =
@@ -34,12 +34,23 @@ function isTrustedAppUrl(value) {
   }
 }
 
+function getResponsiveWindowMetrics() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+
+  return {
+    splashWidth: Math.max(340, Math.min(820, Math.floor(width * 0.72))),
+    splashHeight: Math.max(280, Math.min(540, Math.floor(height * 0.62))),
+    mainWidth: Math.max(360, Math.min(1600, Math.floor(width * 0.96))),
+    mainHeight: Math.max(520, Math.min(1100, Math.floor(height * 0.94))),
+  };
+}
 function createSplashWindow() {
   splashStartedAt = Date.now();
+  const { splashWidth, splashHeight } = getResponsiveWindowMetrics();
 
   splashWindow = new BrowserWindow({
-    width: 760,
-    height: 470,
+    width: splashWidth,
+    height: splashHeight,
     frame: false,
     transparent: true,
     resizable: false,
@@ -82,6 +93,7 @@ function revealMainWindow() {
     }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.maximize();
       mainWindow.show();
       mainWindow.focus();
     }
@@ -113,6 +125,7 @@ async function loadRegistry(window) {
 }
 
 function createWindow() {
+  const { mainWidth, mainHeight } = getResponsiveWindowMetrics();
   const persistentSession = session.fromPartition(PARTITION, {
     cache: true,
   });
@@ -134,10 +147,10 @@ function createWindow() {
 
   mainWindow = new BrowserWindow({
     title: "AgriRegistry",
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 680,
+    width: mainWidth,
+    height: mainHeight,
+    minWidth: 360,
+    minHeight: 520,
     show: false,
     icon: ICON_PATH,
     backgroundColor: "#edf3ea",
@@ -201,8 +214,9 @@ app.on("second-instance", () => {
   if (!mainWindow) return;
 
   if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.focus();
+  mainWindow.maximize();
+      mainWindow.show();
+      mainWindow.focus();
 });
 
 app.whenReady().then(() => {

@@ -1336,7 +1336,7 @@ export default function Home() {
   };
 
   if (checkingSession) {
-    return <main className="center-screen"><LoaderCircle className="spin" size={42} /><p>Opening the specimen registry…</p></main>;
+    return <main className="center-screen"><LoaderCircle className="spin" size={42} /><p>Opening the specimen registryâ€¦</p></main>;
   }
 
   if (!appwriteConfigured) {
@@ -1359,12 +1359,17 @@ export default function Home() {
         <div className="field-glow field-glow-two" />
         <section className="auth-intro reveal is-visible">
           <div className="brand-mark auth-brand agriregistry-auth-brand">
-            <span className="agriregistry-logo-surface">
+            <span className="agriregistry-logo-surface" aria-label="AgriRegistry, powered by Luntian">
               <img
-                src="/agriregistry-logo.png?v=20260731"
-                alt="AgriRegistry, powered by Luntian"
-                className="agriregistry-logo agriregistry-auth-logo"
+                src="/agriregistry-icon.png?v=20260731-centered-v2"
+                alt=""
+                className="agriregistry-emblem"
+                aria-hidden="true"
               />
+              <span className="agriregistry-brand-copy" aria-hidden="true">
+                <strong>AgriRegistry</strong>
+                <small>Powered by <em>Luntian</em></small>
+              </span>
             </span>
           </div>
           <p className="eyebrow">Agricultural biodiversity registry</p>
@@ -1383,14 +1388,14 @@ export default function Home() {
           </div>
           <div className="auth-heading">
             <FlaskConical />
-            <div><h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2><p>No admin role—every contributor uses a standard account.</p></div>
+            <div><h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2><p>No admin roleâ€”every contributor uses a standard account.</p></div>
           </div>
           {!isOnline && <div className="offline-auth-notice"><CloudOff /><span>Offline. A first-time sign-in or account creation requires internet.</span></div>}
           <form onSubmit={handleAuth} className="auth-form">
             {authMode === "register" && <label>Full name<input value={authName} onChange={(e) => setAuthName(e.target.value)} required placeholder="Your complete name" /></label>}
             <label>Email address<input type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required placeholder="name@example.com" /></label>
             <label>Password<input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required minLength={8} placeholder="At least 8 characters" /></label>
-            <button className="primary-button full" disabled={authBusy}>{authBusy ? <LoaderCircle className="spin" /> : authMode === "login" ? <CircleUserRound /> : <Sprout />}{authBusy ? "Please wait…" : authMode === "login" ? "Sign in" : "Register and continue"}</button>
+            <button className="primary-button full" disabled={authBusy}>{authBusy ? <LoaderCircle className="spin" /> : authMode === "login" ? <CircleUserRound /> : <Sprout />}{authBusy ? "Please waitâ€¦" : authMode === "login" ? "Sign in" : "Register and continue"}</button>
           </form>
         </section>
         {toast && <div className={`toast ${toast.type}`}>{toast.type === "success" ? <Check /> : <X />}{toast.message}</div>}
@@ -1412,13 +1417,18 @@ export default function Home() {
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           aria-label="AgriRegistry, powered by Luntian"
         >
-          <span className="agriregistry-logo-surface agriregistry-logo-surface-compact">
-            <img
-              src="/agriregistry-logo.png?v=20260731"
-              alt=""
-              className="agriregistry-logo agriregistry-topbar-logo"
-            />
-          </span>
+          <span className="agriregistry-logo-surface agriregistry-logo-surface-compact" aria-label="AgriRegistry, powered by Luntian">
+              <img
+                src="/agriregistry-icon.png?v=20260731-centered-v2"
+                alt=""
+                className="agriregistry-emblem"
+                aria-hidden="true"
+              />
+              <span className="agriregistry-brand-copy" aria-hidden="true">
+                <strong>AgriRegistry</strong>
+                <small>Powered by <em>Luntian</em></small>
+              </span>
+            </span>
         </button>
         <nav className={menuOpen ? "nav-actions open" : "nav-actions"}>
           <button className="ghost-button" onClick={() => document.getElementById("registry")?.scrollIntoView({ behavior: "smooth" })}><BookOpenText /> Registry</button>
@@ -1463,11 +1473,11 @@ export default function Home() {
       <section id="registry" className="registry-section reveal">
         <div className="section-heading"><div><p className="eyebrow">Specimen catalogue</p><h2>Searchable agricultural collection</h2></div><div className="section-actions"><button className="ghost-button" onClick={openImportModal}><FileSpreadsheet /> Import Excel</button><button className="primary-button" onClick={openNewForm}><Plus /> New record</button></div></div>
         <div className="glass search-panel">
-          <label className="global-search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search specimen number, taxonomy, location, host, collector, status, reference…" />{search && <button onClick={() => setSearch("")}><X /></button>}</label>
+          <label className="global-search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search specimen number, taxonomy, location, host, collector, status, referenceâ€¦" />{search && <button onClick={() => setSearch("")}><X /></button>}</label>
           <div className="advanced-filter">
             <Filter />
             <select value={filterField} onChange={(e) => setFilterField(e.target.value)}><option value="all">Choose a specific field</option>{specimenFields.map((field) => <option key={field.key} value={field.key}>{field.label}</option>)}</select>
-            <input value={filterValue} onChange={(e) => setFilterValue(e.target.value)} disabled={filterField === "all"} placeholder={filterField === "all" ? "Select a field first" : "Filter this field…"} />
+            <input value={filterValue} onChange={(e) => setFilterValue(e.target.value)} disabled={filterField === "all"} placeholder={filterField === "all" ? "Select a field first" : "Filter this fieldâ€¦"} />
           </div>
         </div>
 
@@ -1508,13 +1518,18 @@ export default function Home() {
       </section>
 
       <footer className="agriregistry-footer">
-        <span className="agriregistry-logo-surface agriregistry-footer-logo-surface">
-          <img
-            src="/agriregistry-logo.png?v=20260731"
-            alt="AgriRegistry, powered by Luntian"
-            className="agriregistry-logo agriregistry-footer-logo"
-          />
-        </span>
+        <span className="agriregistry-logo-surface agriregistry-footer-logo-surface" aria-label="AgriRegistry, powered by Luntian">
+              <img
+                src="/agriregistry-icon.png?v=20260731-centered-v2"
+                alt=""
+                className="agriregistry-emblem"
+                aria-hidden="true"
+              />
+              <span className="agriregistry-brand-copy" aria-hidden="true">
+                <strong>AgriRegistry</strong>
+                <small>Powered by <em>Luntian</em></small>
+              </span>
+            </span>
       </footer>
 
       {formOpen && (
@@ -1553,12 +1568,12 @@ export default function Home() {
                           <span>{slot.label}</span>
                           <small>
                             {isCompressing
-                              ? "Optimizing image before upload…"
+                              ? "Optimizing image before uploadâ€¦"
                               : compression
                                 ? compression.compressed
-                                  ? `${formatFileSize(compression.originalBytes)} → ${formatFileSize(compression.compressedBytes)} · ${savingPercent}% smaller`
-                                  : `Already optimized · ${formatFileSize(compression.compressedBytes)}`
-                                : newFile?.name || (existingId ? "Existing photo—choose a file to replace" : "Optional JPG, PNG, or WebP")}
+                                  ? `${formatFileSize(compression.originalBytes)} â†’ ${formatFileSize(compression.compressedBytes)} Â· ${savingPercent}% smaller`
+                                  : `Already optimized Â· ${formatFileSize(compression.compressedBytes)}`
+                                : newFile?.name || (existingId ? "Existing photoâ€”choose a file to replace" : "Optional JPG, PNG, or WebP")}
                           </small>
                         </label>
                         {(newFile || existingId) && !isCompressing && <button type="button" className="remove-photo-button" onClick={() => removePhotoSlot(slot.key)}><Trash2 /> Remove photo</button>}
@@ -1568,7 +1583,7 @@ export default function Home() {
                 </div>
               </fieldset>
             </div>
-            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setFormOpen(false)}>Cancel</button><button className="primary-button" disabled={saving || photoCompressionBusy}>{saving || photoCompressionBusy ? <LoaderCircle className="spin" /> : <Check />}{photoCompressionBusy ? "Optimizing photos…" : saving ? "Saving record…" : editingRow ? "Save changes" : "Add to registry"}</button></div>
+            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setFormOpen(false)}>Cancel</button><button className="primary-button" disabled={saving || photoCompressionBusy}>{saving || photoCompressionBusy ? <LoaderCircle className="spin" /> : <Check />}{photoCompressionBusy ? "Optimizing photosâ€¦" : saving ? "Saving recordâ€¦" : editingRow ? "Save changes" : "Add to registry"}</button></div>
           </form>
         </div>
       )}
@@ -1602,7 +1617,7 @@ export default function Home() {
                     <div className="import-preview-table">
                       <div className="import-preview-row header"><span>Specimen No.</span><span>Identification</span><span>Collection date</span><span>Images</span><span>Source</span></div>
                       {importRows.slice(0, 8).map((item, index) => (
-                        <div className="import-preview-row" key={`${item.sourceSheet}-${item.sourceRow}-${index}`}><span>{item.data.specimenNo || "Automatic ID"}</span><span><em>{displayScientificName(item.data)}</em></span><span>{item.data.dateCollection || "—"}</span><span>{item.photos.length || "—"}</span><span>{item.sourceSheet}, row {item.sourceRow}</span></div>
+                        <div className="import-preview-row" key={`${item.sourceSheet}-${item.sourceRow}-${index}`}><span>{item.data.specimenNo || "Automatic ID"}</span><span><em>{displayScientificName(item.data)}</em></span><span>{item.data.dateCollection || "â€”"}</span><span>{item.photos.length || "â€”"}</span><span>{item.sourceSheet}, row {item.sourceRow}</span></div>
                       ))}
                     </div>
                   </div>
@@ -1616,10 +1631,10 @@ export default function Home() {
               )}
 
               {importSummary && (
-                <div className="import-result"><Check /><div><h3>Import complete</h3><p><strong>{importSummary.added}</strong> added · <strong>{importSummary.updated}</strong> updated · <strong>{importSummary.images}</strong> images optimized · <strong>{importSummary.failed}</strong> failed</p></div></div>
+                <div className="import-result"><Check /><div><h3>Import complete</h3><p><strong>{importSummary.added}</strong> added Â· <strong>{importSummary.updated}</strong> updated Â· <strong>{importSummary.images}</strong> images optimized Â· <strong>{importSummary.failed}</strong> failed</p></div></div>
               )}
             </div>
-            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setImportOpen(false)} disabled={importBusy}>{importSummary ? "Close" : "Cancel"}</button><button type="button" className="primary-button" onClick={() => void importExcelRows()} disabled={importBusy || importPlan.total === 0}>{importBusy && importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}{importBusy && importProgress.total ? "Importing…" : `Import ${importPlan.total} record${importPlan.total === 1 ? "" : "s"}`}</button></div>
+            <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setImportOpen(false)} disabled={importBusy}>{importSummary ? "Close" : "Cancel"}</button><button type="button" className="primary-button" onClick={() => void importExcelRows()} disabled={importBusy || importPlan.total === 0}>{importBusy && importProgress.total ? <LoaderCircle className="spin" /> : <FileSpreadsheet />}{importBusy && importProgress.total ? "Importingâ€¦" : `Import ${importPlan.total} record${importPlan.total === 1 ? "" : "s"}`}</button></div>
           </div>
         </div>
       )}
@@ -1641,7 +1656,7 @@ export default function Home() {
                   {Object.keys(photos).length > 0 ? <div className="details-gallery">{photoSlots.filter((slot) => photos[slot.key]).map((slot) => <figure key={slot.key}><PhotoImage fileId={photos[slot.key]} alt={slot.label} /><figcaption>{slot.label}</figcaption></figure>)}</div> : <div className="no-photos"><Camera /><p>No photographs were added to this record.</p></div>}
                   <div className="identity-strip"><span><strong>Entered by</strong>{detailsRow.createdByName}<small>{detailsRow.createdByEmail}</small></span><span><strong>Created</strong>{formatDate(detailsRow.$createdAt)}</span><span><strong>Last updated</strong>{formatDate(detailsRow.$updatedAt)}</span></div>
                   {fieldGroups.map((group) => (
-                    <section className="detail-group" key={group}><h3>{group}</h3><div className="detail-grid">{specimenFields.filter((field) => field.group === group).map((field) => <div key={field.key}><span>{field.label}</span><strong className={field.key === "genus" || field.key === "species" || field.key === "subspecies" ? "italic" : ""}>{data[field.key] || "—"}</strong></div>)}</div></section>
+                    <section className="detail-group" key={group}><h3>{group}</h3><div className="detail-grid">{specimenFields.filter((field) => field.group === group).map((field) => <div key={field.key}><span>{field.label}</span><strong className={field.key === "genus" || field.key === "species" || field.key === "subspecies" ? "italic" : ""}>{data[field.key] || "â€”"}</strong></div>)}</div></section>
                   ))}
                   <section className="detail-group suggestions"><h3><Sparkles /> Related-family and predator suggestions</h3><div className="suggestion-grid"><article><Leaf /><span>Related family records</span>{related.length ? <div className="related-list">{related.map((row) => <button key={row.$id} onClick={() => setDetailsRow(row)}><strong>{row.specimenNo}</strong><em>{displayScientificName(parseSpecimenData(row))}</em></button>)}</div> : <p>No other specimen from <strong>{data.family || "this family"}</strong> has been recorded yet.</p>}</article><article><Bug /><span>Possible predator</span><p>{data.possiblePredator || "No supported predator relationship has been entered. Add one only after observation or verification."}</p><small>Suggestion data should be reviewed by a qualified taxonomist or pest-management specialist.</small></article></div></section>
                 </div>

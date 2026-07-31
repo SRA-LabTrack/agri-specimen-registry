@@ -2,32 +2,214 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Opening AgriRegistry</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; font-family: "Segoe UI", Arial, sans-serif; user-select: none; }
-    body { display: grid; place-items: center; padding: 18px; }
-    .splash { position: relative; width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 34px; background: radial-gradient(circle at 18% 18%, rgba(123,220,72,.25), transparent 33%), radial-gradient(circle at 82% 78%, rgba(67,176,116,.22), transparent 34%), linear-gradient(145deg,#03120c,#0a2d1d 52%,#06170f); box-shadow: 0 34px 90px rgba(0,0,0,.5); animation: shell-in .7s cubic-bezier(.18,.88,.25,1.1) both; }
-    .card { position: relative; z-index: 2; width: 90%; display: grid; justify-items: center; gap: 24px; }
-    .logo-panel { position: relative; width: 100%; overflow: hidden; padding: 24px; border: 1px solid rgba(255,255,255,.92); border-radius: 28px; background: linear-gradient(135deg,rgba(255,255,255,.99),rgba(235,247,230,.97)); box-shadow: 0 26px 74px rgba(0,0,0,.34), 0 0 56px rgba(122,219,76,.17), inset 0 1px rgba(255,255,255,1); }
-    .logo-panel::after { content: ""; position: absolute; top: -70%; left: -28%; width: 24%; height: 240%; background: linear-gradient(90deg,transparent,rgba(255,255,255,.92),transparent); transform: rotate(18deg); animation: shine 1.55s .2s ease both; }
-    img { position: relative; z-index: 1; display: block; width: 100%; height: auto; filter: contrast(1.12) brightness(1.04) saturate(1.08) drop-shadow(0 2px 0 white) drop-shadow(0 9px 20px rgba(14,70,39,.27)); animation: logo-breathe 1.35s ease-in-out infinite alternate; }
-    .progress { width: 285px; max-width: 70%; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.16); }
-    .progress::after { content: ""; display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#75d74c,#edf88d,#55c993); transform-origin: left; animation: progress 1.65s cubic-bezier(.2,.75,.26,1) both; }
-    .particles, .particles::before { position: absolute; inset: 0; content: ""; opacity: .7; background-image: radial-gradient(circle,rgba(219,255,151,.92) 0 1px,transparent 2px), radial-gradient(circle,rgba(111,219,103,.75) 0 1.5px,transparent 2.5px); background-size: 68px 68px,107px 107px; background-position: 13px 17px,38px 49px; animation: drift 7s linear infinite; }
-    @keyframes shell-in { from { opacity: 0; transform: scale(.9); filter: blur(8px); } to { opacity: 1; transform: scale(1); filter: blur(0); } }
-    @keyframes shine { from { transform: translateX(0) rotate(18deg); opacity: 0; } 25% { opacity: .88; } to { transform: translateX(610%) rotate(18deg); opacity: 0; } }
-    @keyframes logo-breathe { from { transform: scale(.992); } to { transform: scale(1.012); } }
-    @keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes drift { from { transform: translateY(0); } to { transform: translateY(-68px); } }
+    html, body {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", Inter, Arial, sans-serif;
+      user-select: none;
+    }
+    body {
+      display: grid;
+      place-items: center;
+      padding: clamp(10px, 2.2vw, 20px);
+    }
+    .splash {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: clamp(24px, 4vw, 38px);
+      background:
+        radial-gradient(circle at 16% 16%, rgba(132,225,80,.3), transparent 34%),
+        radial-gradient(circle at 84% 82%, rgba(65,190,125,.24), transparent 36%),
+        linear-gradient(145deg,#032013,#0b4228 55%,#061a10);
+      box-shadow: 0 34px 90px rgba(0,0,0,.5);
+      animation: shell-in .7s cubic-bezier(.18,.88,.25,1.1) both;
+    }
+    .card {
+      position: relative;
+      z-index: 2;
+      width: min(92%, 760px);
+      max-height: 92%;
+      min-width: 0;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: clamp(12px, 2.4vh, 22px);
+      text-align: center;
+    }
+    .logo-panel {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(14px, 3vw, 30px);
+      overflow: hidden;
+      padding: clamp(18px, 4vw, 38px);
+      border: 1px solid rgba(255,255,255,.96);
+      border-radius: clamp(22px, 4vw, 34px);
+      background:
+        radial-gradient(circle at 18% 14%, rgba(207,244,190,.62), transparent 34%),
+        linear-gradient(145deg,rgba(255,255,255,.99),rgba(235,248,229,.98));
+      box-shadow:
+        0 26px 74px rgba(0,0,0,.34),
+        0 0 56px rgba(122,219,76,.17),
+        inset 0 1px rgba(255,255,255,1);
+    }
+    .logo-panel::after {
+      content: "";
+      position: absolute;
+      top: -70%;
+      left: -28%;
+      width: 24%;
+      height: 240%;
+      background: linear-gradient(90deg,transparent,rgba(255,255,255,.92),transparent);
+      transform: rotate(18deg);
+      animation: shine 1.55s .2s ease both;
+    }
+    .emblem {
+      position: relative;
+      z-index: 1;
+      flex: 0 1 auto;
+      width: clamp(108px, 23vw, 190px);
+      height: clamp(108px, 23vw, 190px);
+      object-fit: contain;
+      filter: drop-shadow(0 16px 26px rgba(18,86,42,.27));
+      animation: logo-breathe 1.35s ease-in-out infinite alternate;
+    }
+    .copy {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      display: grid;
+      justify-items: center;
+      gap: clamp(7px, 1.3vw, 12px);
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      color: #07592d;
+      font-size: clamp(2.3rem, 7.5vw, 5rem);
+      font-weight: 950;
+      line-height: .92;
+      letter-spacing: -.055em;
+      text-align: center;
+      text-shadow: 0 2px 0 white, 0 10px 28px rgba(11,78,38,.24);
+    }
+    .powered {
+      margin: 0;
+      color: #b56812;
+      font-size: clamp(.78rem, 2.1vw, 1.08rem);
+      font-weight: 900;
+      letter-spacing: .025em;
+      text-align: center;
+    }
+    .powered span { color: #18823a; }
+    .loading {
+      margin: 0;
+      color: rgba(247,255,243,.98);
+      font-size: clamp(.7rem, 1.7vw, .9rem);
+      font-weight: 900;
+      letter-spacing: .2em;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 3px 18px rgba(0,0,0,.5);
+    }
+    .progress {
+      width: min(330px, 72%);
+      height: 5px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,.16);
+    }
+    .progress::after {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg,#75d74c,#edf88d,#55c993);
+      transform-origin: left;
+      animation: progress 1.65s cubic-bezier(.2,.75,.26,1) both;
+    }
+    .particles, .particles::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      opacity: .7;
+      background-image:
+        radial-gradient(circle,rgba(219,255,151,.92) 0 1px,transparent 2px),
+        radial-gradient(circle,rgba(111,219,103,.75) 0 1.5px,transparent 2.5px);
+      background-size: 68px 68px,107px 107px;
+      background-position: 13px 17px,38px 49px;
+      animation: drift 7s linear infinite;
+    }
+    @media (max-width: 600px), (max-height: 480px) {
+      .logo-panel {
+        flex-direction: column;
+        gap: 7px;
+        padding: 16px;
+      }
+      .emblem {
+        width: clamp(84px, 25vw, 126px);
+        height: clamp(84px, 25vw, 126px);
+      }
+      h1 { font-size: clamp(2rem, 11vw, 3.4rem); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .splash, .logo-panel::after, .emblem, .progress::after, .particles, .particles::before {
+        animation: none !important;
+      }
+    }
+    @keyframes shell-in {
+      from { opacity: 0; transform: scale(.9); filter: blur(8px); }
+      to { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    @keyframes shine {
+      from { transform: translateX(0) rotate(18deg); opacity: 0; }
+      25% { opacity: .88; }
+      to { transform: translateX(610%) rotate(18deg); opacity: 0; }
+    }
+    @keyframes logo-breathe {
+      from { transform: scale(.992); }
+      to { transform: scale(1.012); }
+    }
+    @keyframes progress {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+    @keyframes drift {
+      from { transform: translateY(0); }
+      to { transform: translateY(-68px); }
+    }
   </style>
 </head>
 <body>
   <main class="splash">
     <div class="particles"></div>
     <section class="card">
-      <div class="logo-panel"><img src="./assets/agriregistry-logo.png" alt="AgriRegistry"></div>
+      <div class="logo-panel">
+        <img class="emblem" src="./assets/agriregistry-icon.png" alt="">
+        <div class="copy">
+          <h1>AgriRegistry</h1>
+          <p class="powered">Powered by <span>Luntian</span></p>
+        </div>
+      </div>
+      <p class="loading">Loading registry</p>
       <div class="progress" aria-hidden="true"></div>
     </section>
   </main>

@@ -1,4 +1,4 @@
-const VERSION = "agriregistry-force-brand-20260731";
+const VERSION = "agriregistry-responsive-centered-20260731-v4";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
