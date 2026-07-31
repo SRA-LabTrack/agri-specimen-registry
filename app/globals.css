@@ -1902,3 +1902,40 @@ body::before {
   }
 }
 /* AGRIREGISTRY FULLSCREEN ENCODING V5 END */
+
+/* AGRIREGISTRY DESKTOP EXIT V7 START */
+.desktop-exit-button {
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid rgba(18, 89, 44, .18);
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2d7d4a, #155b32);
+  box-shadow: 0 10px 24px rgba(24, 91, 49, .2), inset 0 1px rgba(255,255,255,.22);
+  cursor: pointer;
+  font-weight: 850;
+  white-space: nowrap;
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+
+.desktop-exit-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 14px 28px rgba(24, 91, 49, .25), inset 0 1px rgba(255,255,255,.25);
+}
+
+.desktop-exit-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 760px) {
+  .desktop-exit-button {
+    width: 100%;
+  }
+}
+/* AGRIREGISTRY DESKTOP EXIT V7 END */

@@ -172,6 +172,11 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // AGRIREGISTRY_EXIT_PROTOCOL_V7_OPEN
+    if (url.startsWith("agriregistry://exit")) {
+      app.quit();
+      return { action: "deny" };
+    }
     if (isTrustedAppUrl(url)) {
       return { action: "allow" };
     }
@@ -181,6 +186,12 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
+    // AGRIREGISTRY_EXIT_PROTOCOL_V7_NAVIGATE
+    if (url.startsWith("agriregistry://exit")) {
+      event.preventDefault();
+      app.quit();
+      return;
+    }
     if (isTrustedAppUrl(url) || url.startsWith("file:")) return;
 
     event.preventDefault();

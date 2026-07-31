@@ -108,6 +108,7 @@ async function enableSharedRowEditing() {
       sdk.Permission.read(sdk.Role.users()),
       sdk.Permission.create(sdk.Role.users()),
       sdk.Permission.update(sdk.Role.users()),
+      sdk.Permission.delete(sdk.Role.users()),
     ],
     rowSecurity: true,
     enabled: table.enabled,

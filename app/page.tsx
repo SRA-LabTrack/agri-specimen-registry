@@ -115,11 +115,11 @@ function safeFilename(value: string): string {
 
 type CreatorIdentity = { id: string; name: string; email: string };
 
-function sharedRowPermissions(creatorId: string): string[] {
+function sharedRowPermissions(_creatorId: string): string[] {
   return [
     Permission.read(Role.users()),
     Permission.update(Role.users()),
-    Permission.delete(Role.user(creatorId)),
+    Permission.delete(Role.users()),
   ];
 }
 
@@ -439,11 +439,34 @@ export default function Home() {
   const [importSummary, setImportSummary] = useState<ImportSummary>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [isOnline, setIsOnline] = useState(true);
+  // AGRIREGISTRY_DESKTOP_EXIT_V7_STATE
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const syncBusyRef = useRef(false);
   const photoCompressionBusy = Object.values(compressingPhotoSlots).some(Boolean);
+
+  // AGRIREGISTRY_DESKTOP_EXIT_V7_FUNCTION
+  useEffect(() => {
+    setIsDesktopApp(navigator.userAgent.toLowerCase().includes("electron"));
+  }, []);
+
+  const exitDesktopApp = () => {
+    if (!isDesktopApp) return;
+
+    if (
+      pendingCount > 0
+      && !window.confirm(
+        `${pendingCount} offline change${pendingCount === 1 ? "" : "s"} still ${pendingCount === 1 ? "needs" : "need"} to synchronize. Exit anyway?`,
+      )
+    ) {
+      return;
+    }
+
+    if (!window.confirm("Exit AgriRegistry?")) return;
+    window.location.href = "agriregistry://exit";
+  };
 
   const showToast = (next: Toast) => {
     setToast(next);
@@ -1206,7 +1229,7 @@ export default function Home() {
   };
 
   const deleteRow = async (row: SpecimenRow) => {
-    if (!user || row.createdById !== user.$id) return;
+    if (!user) return;
     if (!window.confirm(`Delete specimen ${row.specimenNo}? This cannot be undone after synchronization.`)) return;
     const photoIds = Object.values(parsePhotoMap(row)) as string[];
 
@@ -1443,6 +1466,19 @@ export default function Home() {
             {syncing ? <LoaderCircle className="spin" /> : isOnline ? <Cloud /> : <CloudOff />}
             <span><strong>{syncing ? "Syncing" : isOnline ? pendingCount ? `${pendingCount} pending` : "Online" : "Offline"}</strong><small>{isOnline ? pendingCount ? "Tap to sync" : "Offline copy ready" : `${pendingCount} waiting`}</small></span>
           </button>
+          {/* AGRIREGISTRY_DESKTOP_EXIT_V7_BUTTON */}
+          {isDesktopApp && (
+            <button
+              className="desktop-exit-button"
+              type="button"
+              onClick={exitDesktopApp}
+              title="Exit AgriRegistry"
+              aria-label="Exit AgriRegistry"
+            >
+              <X />
+              <span>Exit</span>
+            </button>
+          )}
           <button className="profile-button" onClick={logout}><span>{(user.name || user.email).slice(0, 1).toUpperCase()}</span><div><strong>{user.name || "Contributor"}</strong><small>{user.email}</small></div><LogOut /></button>
         </nav>
         <button className="menu-button" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
@@ -1643,7 +1679,7 @@ export default function Home() {
         const data = parseSpecimenData(detailsRow);
         const photos = parsePhotoMap(detailsRow);
         const canEdit = true;
-        const canDelete = detailsRow.createdById === user.$id;
+        const canDelete = true;
         const related = rows.filter((row) => row.$id !== detailsRow.$id && row.family && row.family.toLowerCase() === detailsRow.family?.toLowerCase()).slice(0, 4);
         return (
           <div className="modal-backdrop" role="dialog" aria-modal="true">

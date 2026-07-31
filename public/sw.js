@@ -1,4 +1,4 @@
-const VERSION = "agriregistry-fullscreen-encoding-fix-20260731-v5";
+const VERSION = "agriregistry-shared-delete-exit-20260731-v8";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
