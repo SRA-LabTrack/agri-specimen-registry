@@ -40,7 +40,7 @@ jobs:
         shell: pwsh
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run desktop:build
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Verify update files
         shell: pwsh
