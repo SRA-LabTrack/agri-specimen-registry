@@ -53,15 +53,44 @@ function broadcastUpdateState(patch = {}) {
   return updateState;
 }
 
-function updaterErrorMessage(error) {
-  const message =
+function updaterRawError(error) {
+  return (
     error && typeof error.message === "string"
       ? error.message
-      : String(error || "Unknown update error");
+      : String(error || "Unknown update error")
+  );
+}
 
-  return message
-    .replace(/https?:\/\/[^\s]+/g, "the update server")
-    .slice(0, 280);
+function isMissingReleaseError(error) {
+  const message = updaterRawError(error).toLowerCase();
+
+  return (
+    message.includes("unable to find latest version on github")
+    || message.includes("cannot parse releases feed")
+    || message.includes("status code: 406")
+    || message.includes("httperror: 406")
+    || (
+      message.includes("406")
+      && message.includes("latest version")
+    )
+  );
+}
+
+function updaterErrorMessage(error) {
+  const message = updaterRawError(error).toLowerCase();
+
+  if (
+    message.includes("enotfound")
+    || message.includes("econnreset")
+    || message.includes("econnrefused")
+    || message.includes("network")
+    || message.includes("net::")
+    || message.includes("timed out")
+  ) {
+    return "AgriRegistry could not reach the update server. Check your connection and try again.";
+  }
+
+  return "The desktop update service could not complete the request. Please try again later.";
 }
 
 async function checkForDesktopUpdates(manual = false) {
@@ -84,11 +113,21 @@ async function checkForDesktopUpdates(manual = false) {
   try {
     await autoUpdater.checkForUpdates();
   } catch (error) {
-    broadcastUpdateState({
-      status: manual ? "error" : "idle",
-      message: manual ? updaterErrorMessage(error) : "",
-      showBanner: manual,
-    });
+    if (isMissingReleaseError(error)) {
+      broadcastUpdateState({
+        status: "up-to-date",
+        availableVersion: undefined,
+        percent: 100,
+        message: "No newer desktop release is available yet.",
+        showBanner: manual,
+      });
+    } else {
+      broadcastUpdateState({
+        status: manual ? "error" : "idle",
+        message: manual ? updaterErrorMessage(error) : "",
+        showBanner: manual,
+      });
+    }
   }
 
   return updateState;
@@ -152,7 +191,22 @@ function configureAutoUpdater() {
   });
 
   autoUpdater.on("error", (error) => {
-    const shouldShow = lastUpdateCheckWasManual || updateDownloadStarted;
+    if (isMissingReleaseError(error)) {
+      broadcastUpdateState({
+        status: "up-to-date",
+        availableVersion: undefined,
+        percent: 100,
+        message: "No newer desktop release is available yet.",
+        showBanner: lastUpdateCheckWasManual,
+      });
+
+      updateDownloadStarted = false;
+      lastUpdateCheckWasManual = false;
+      return;
+    }
+
+    const shouldShow =
+      lastUpdateCheckWasManual || updateDownloadStarted;
 
     broadcastUpdateState({
       status: shouldShow ? "error" : "idle",

@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify tag and package version
+      - name: Verify release tag
         shell: pwsh
         run: |
           $version = node -p "require('./package.json').version"
@@ -36,9 +36,69 @@ jobs:
             throw "Tag ${{ github.ref_name }} does not match package version $version."
           }
 
-      - name: Build and publish the NSIS update
+      - name: Build Windows updater files
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run desktop:build
+
+      - name: Verify update files
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem `
+            "dist-electron" `
+            -Filter "AgriRegistry-Setup-*.exe" `
+            -File |
+            Select-Object -First 1
+
+          $blockmap = Get-ChildItem `
+            "dist-electron" `
+            -Filter "AgriRegistry-Setup-*.exe.blockmap" `
+            -File |
+            Select-Object -First 1
+
+          $latest = Get-Item `
+            "dist-electron/latest.yml" `
+            -ErrorAction SilentlyContinue
+
+          if (-not $installer) {
+            throw "The NSIS installer was not generated."
+          }
+
+          if (-not $blockmap) {
+            throw "The installer blockmap was not generated."
+          }
+
+          if (-not $latest) {
+            throw "latest.yml was not generated."
+          }
+
+      - name: Publish production GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run desktop:publish
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = node -p "require('./package.json').version"
+
+          $assets = @(
+            Get-ChildItem `
+              "dist-electron" `
+              -Filter "AgriRegistry-Setup-*.exe" `
+              -File |
+              Select-Object -ExpandProperty FullName
+
+            Get-ChildItem `
+              "dist-electron" `
+              -Filter "AgriRegistry-Setup-*.exe.blockmap" `
+              -File |
+              Select-Object -ExpandProperty FullName
+
+            (Resolve-Path "dist-electron/latest.yml").Path
+          )
+
+          gh release create $tag @assets `
+            --repo "${{ github.repository }}" `
+            --title "AgriRegistry $version" `
+            --generate-notes `
+            --latest
