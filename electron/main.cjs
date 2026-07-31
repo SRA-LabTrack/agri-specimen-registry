@@ -34,33 +34,34 @@ function isTrustedAppUrl(value) {
   }
 }
 
-function getResponsiveWindowMetrics() {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-
+function getPrimaryDisplaySize() {
+  const display = screen.getPrimaryDisplay();
   return {
-    splashWidth: Math.max(340, Math.min(820, Math.floor(width * 0.72))),
-    splashHeight: Math.max(280, Math.min(540, Math.floor(height * 0.62))),
-    mainWidth: Math.max(360, Math.min(1600, Math.floor(width * 0.96))),
-    mainHeight: Math.max(520, Math.min(1100, Math.floor(height * 0.94))),
+    width: Math.max(360, display.bounds.width),
+    height: Math.max(520, display.bounds.height),
   };
 }
+
 function createSplashWindow() {
   splashStartedAt = Date.now();
-  const { splashWidth, splashHeight } = getResponsiveWindowMetrics();
+  const { width, height } = getPrimaryDisplaySize();
 
   splashWindow = new BrowserWindow({
-    width: splashWidth,
-    height: splashHeight,
+    width,
+    height,
+    x: 0,
+    y: 0,
     frame: false,
-    transparent: true,
+    fullscreen: true,
+    fullscreenable: true,
+    transparent: false,
     resizable: false,
-    movable: true,
+    movable: false,
     show: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    center: true,
     icon: ICON_PATH,
-    backgroundColor: "#00000000",
+    backgroundColor: "#dcefd6",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -72,6 +73,7 @@ function createSplashWindow() {
 
   splashWindow.once("ready-to-show", () => {
     if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.setFullScreen(true);
       splashWindow.show();
     }
   });
@@ -93,7 +95,7 @@ function revealMainWindow() {
     }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.maximize();
+      mainWindow.setFullScreen(true);
       mainWindow.show();
       mainWindow.focus();
     }
@@ -125,7 +127,8 @@ async function loadRegistry(window) {
 }
 
 function createWindow() {
-  const { mainWidth, mainHeight } = getResponsiveWindowMetrics();
+  const { width, height } = getPrimaryDisplaySize();
+
   const persistentSession = session.fromPartition(PARTITION, {
     cache: true,
   });
@@ -147,13 +150,15 @@ function createWindow() {
 
   mainWindow = new BrowserWindow({
     title: "AgriRegistry",
-    width: mainWidth,
-    height: mainHeight,
+    width,
+    height,
     minWidth: 360,
     minHeight: 520,
+    fullscreen: true,
+    fullscreenable: true,
     show: false,
     icon: ICON_PATH,
-    backgroundColor: "#edf3ea",
+    backgroundColor: "#dcefd6",
     autoHideMenuBar: true,
     webPreferences: {
       partition: PARTITION,
@@ -180,6 +185,13 @@ function createWindow() {
 
     event.preventDefault();
     void shell.openExternal(url);
+  });
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.type === "keyDown" && input.key === "F11") {
+      event.preventDefault();
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
   });
 
   mainWindow.webContents.on(
@@ -214,9 +226,9 @@ app.on("second-instance", () => {
   if (!mainWindow) return;
 
   if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.maximize();
-      mainWindow.show();
-      mainWindow.focus();
+  mainWindow.setFullScreen(true);
+  mainWindow.show();
+  mainWindow.focus();
 });
 
 app.whenReady().then(() => {

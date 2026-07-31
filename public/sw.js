@@ -1,4 +1,4 @@
-const VERSION = "agriregistry-responsive-centered-20260731-v4";
+const VERSION = "agriregistry-fullscreen-encoding-fix-20260731-v5";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

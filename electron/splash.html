@@ -6,212 +6,199 @@
   <title>Opening AgriRegistry</title>
   <style>
     * { box-sizing: border-box; }
-    html, body {
+
+    html,
+    body {
       width: 100%;
       height: 100%;
-      min-width: 0;
       margin: 0;
       overflow: hidden;
-      background: transparent;
+      color: #0f4e2b;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(76, 174, 82, .42), transparent 31%),
+        radial-gradient(circle at 88% 14%, rgba(255,255,255,.98), transparent 35%),
+        radial-gradient(circle at 76% 88%, rgba(73, 165, 99, .3), transparent 38%),
+        linear-gradient(135deg, #cce8c4 0%, #fbfff9 45%, #ffffff 57%, #d4edd5 100%);
       font-family: "Segoe UI", Inter, Arial, sans-serif;
       user-select: none;
     }
+
     body {
       display: grid;
       place-items: center;
-      padding: clamp(10px, 2.2vw, 20px);
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
     }
-    .splash {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      min-width: 0;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,.24);
-      border-radius: clamp(24px, 4vw, 38px);
-      background:
-        radial-gradient(circle at 16% 16%, rgba(132,225,80,.3), transparent 34%),
-        radial-gradient(circle at 84% 82%, rgba(65,190,125,.24), transparent 36%),
-        linear-gradient(145deg,#032013,#0b4228 55%,#061a10);
-      box-shadow: 0 34px 90px rgba(0,0,0,.5);
-      animation: shell-in .7s cubic-bezier(.18,.88,.25,1.1) both;
+
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .5;
+      background-image:
+        radial-gradient(circle, rgba(32,117,59,.65) 0 1px, transparent 2px),
+        radial-gradient(circle, rgba(255,255,255,.95) 0 1.5px, transparent 2.5px);
+      background-size: 78px 78px, 121px 121px;
+      animation: drift 9s linear infinite;
     }
+
     .card {
       position: relative;
       z-index: 2;
-      width: min(92%, 760px);
-      max-height: 92%;
-      min-width: 0;
+      width: min(920px, 94vw);
       display: grid;
       justify-items: center;
-      align-content: center;
-      gap: clamp(12px, 2.4vh, 22px);
+      gap: clamp(14px, 2.5vh, 24px);
       text-align: center;
+      animation: arrive .75s cubic-bezier(.18,.88,.25,1.08) both;
     }
+
     .logo-panel {
-      position: relative;
       width: 100%;
-      min-width: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: clamp(14px, 3vw, 30px);
-      overflow: hidden;
-      padding: clamp(18px, 4vw, 38px);
-      border: 1px solid rgba(255,255,255,.96);
-      border-radius: clamp(22px, 4vw, 34px);
+      gap: clamp(18px, 4vw, 42px);
+      padding: clamp(24px, 5vw, 58px);
+      border: 1px solid rgba(255,255,255,.98);
+      border-radius: clamp(26px, 4vw, 44px);
       background:
-        radial-gradient(circle at 18% 14%, rgba(207,244,190,.62), transparent 34%),
-        linear-gradient(145deg,rgba(255,255,255,.99),rgba(235,248,229,.98));
+        radial-gradient(circle at 16% 12%, rgba(193,235,181,.62), transparent 34%),
+        linear-gradient(145deg, rgba(255,255,255,.99), rgba(232,247,228,.97));
       box-shadow:
-        0 26px 74px rgba(0,0,0,.34),
-        0 0 56px rgba(122,219,76,.17),
-        inset 0 1px rgba(255,255,255,1);
+        0 34px 100px rgba(25,91,46,.2),
+        inset 0 1px 0 rgba(255,255,255,1);
     }
-    .logo-panel::after {
-      content: "";
-      position: absolute;
-      top: -70%;
-      left: -28%;
-      width: 24%;
-      height: 240%;
-      background: linear-gradient(90deg,transparent,rgba(255,255,255,.92),transparent);
-      transform: rotate(18deg);
-      animation: shine 1.55s .2s ease both;
-    }
+
     .emblem {
-      position: relative;
-      z-index: 1;
-      flex: 0 1 auto;
-      width: clamp(108px, 23vw, 190px);
-      height: clamp(108px, 23vw, 190px);
+      width: clamp(140px, 21vw, 240px);
+      height: clamp(140px, 21vw, 240px);
       object-fit: contain;
-      filter: drop-shadow(0 16px 26px rgba(18,86,42,.27));
-      animation: logo-breathe 1.35s ease-in-out infinite alternate;
+      filter: drop-shadow(0 20px 30px rgba(17,83,40,.25));
+      animation: breathe 1.5s ease-in-out infinite alternate;
     }
+
     .copy {
-      position: relative;
-      z-index: 1;
       min-width: 0;
       display: grid;
       justify-items: center;
-      gap: clamp(7px, 1.3vw, 12px);
+      gap: 9px;
       text-align: center;
     }
+
     h1 {
       margin: 0;
-      color: #07592d;
-      font-size: clamp(2.3rem, 7.5vw, 5rem);
+      color: #075a2e;
+      font-size: clamp(3rem, 8vw, 7rem);
       font-weight: 950;
-      line-height: .92;
+      line-height: .9;
       letter-spacing: -.055em;
       text-align: center;
-      text-shadow: 0 2px 0 white, 0 10px 28px rgba(11,78,38,.24);
+      text-shadow:
+        0 2px 0 #fff,
+        0 12px 30px rgba(13,82,42,.22);
     }
+
     .powered {
       margin: 0;
-      color: #b56812;
-      font-size: clamp(.78rem, 2.1vw, 1.08rem);
+      color: #a85d0d;
+      font-size: clamp(.9rem, 2vw, 1.25rem);
       font-weight: 900;
-      letter-spacing: .025em;
       text-align: center;
     }
-    .powered span { color: #18823a; }
+
+    .powered span { color: #16833b; }
+
     .loading {
       margin: 0;
-      color: rgba(247,255,243,.98);
-      font-size: clamp(.7rem, 1.7vw, .9rem);
-      font-weight: 900;
+      color: #155c33;
+      font-size: clamp(.82rem, 1.8vw, 1.05rem);
+      font-weight: 950;
       letter-spacing: .2em;
       text-align: center;
       text-transform: uppercase;
-      text-shadow: 0 3px 18px rgba(0,0,0,.5);
     }
+
     .progress {
-      width: min(330px, 72%);
-      height: 5px;
+      width: min(420px, 74vw);
+      height: 6px;
       overflow: hidden;
       border-radius: 999px;
-      background: rgba(255,255,255,.16);
+      background: rgba(26,101,53,.14);
     }
+
     .progress::after {
       content: "";
       display: block;
       width: 100%;
       height: 100%;
       border-radius: inherit;
-      background: linear-gradient(90deg,#75d74c,#edf88d,#55c993);
+      background: linear-gradient(90deg, #2c9b50, #a7e768, #38aa78);
       transform-origin: left;
-      animation: progress 1.65s cubic-bezier(.2,.75,.26,1) both;
+      animation: progress 1.8s cubic-bezier(.2,.75,.26,1) both;
     }
-    .particles, .particles::before {
-      position: absolute;
-      inset: 0;
-      content: "";
-      opacity: .7;
-      background-image:
-        radial-gradient(circle,rgba(219,255,151,.92) 0 1px,transparent 2px),
-        radial-gradient(circle,rgba(111,219,103,.75) 0 1.5px,transparent 2.5px);
-      background-size: 68px 68px,107px 107px;
-      background-position: 13px 17px,38px 49px;
-      animation: drift 7s linear infinite;
-    }
-    @media (max-width: 600px), (max-height: 480px) {
+
+    @media (max-width: 700px) {
       .logo-panel {
         flex-direction: column;
-        gap: 7px;
-        padding: 16px;
+        gap: 8px;
       }
+
       .emblem {
-        width: clamp(84px, 25vw, 126px);
-        height: clamp(84px, 25vw, 126px);
+        width: clamp(118px, 36vw, 180px);
+        height: clamp(118px, 36vw, 180px);
       }
-      h1 { font-size: clamp(2rem, 11vw, 3.4rem); }
+
+      h1 {
+        font-size: clamp(2.6rem, 14vw, 4.8rem);
+      }
     }
+
     @media (prefers-reduced-motion: reduce) {
-      .splash, .logo-panel::after, .emblem, .progress::after, .particles, .particles::before {
+      .particles,
+      .card,
+      .emblem,
+      .progress::after {
         animation: none !important;
       }
     }
-    @keyframes shell-in {
-      from { opacity: 0; transform: scale(.9); filter: blur(8px); }
-      to { opacity: 1; transform: scale(1); filter: blur(0); }
+
+    @keyframes arrive {
+      from { opacity: 0; transform: translateY(28px) scale(.94); filter: blur(8px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
     }
-    @keyframes shine {
-      from { transform: translateX(0) rotate(18deg); opacity: 0; }
-      25% { opacity: .88; }
-      to { transform: translateX(610%) rotate(18deg); opacity: 0; }
+
+    @keyframes breathe {
+      from { transform: scale(.99); }
+      to { transform: scale(1.02); }
     }
-    @keyframes logo-breathe {
-      from { transform: scale(.992); }
-      to { transform: scale(1.012); }
-    }
+
     @keyframes progress {
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
+
     @keyframes drift {
       from { transform: translateY(0); }
-      to { transform: translateY(-68px); }
+      to { transform: translateY(-78px); }
     }
   </style>
 </head>
 <body>
-  <main class="splash">
-    <div class="particles"></div>
-    <section class="card">
-      <div class="logo-panel">
-        <img class="emblem" src="./assets/agriregistry-icon.png" alt="">
-        <div class="copy">
-          <h1>AgriRegistry</h1>
-          <p class="powered">Powered by <span>Luntian</span></p>
-        </div>
+  <div class="particles"></div>
+  <main class="card">
+    <section class="logo-panel">
+      <img class="emblem" src="./assets/agriregistry-icon.png" alt="">
+      <div class="copy">
+        <h1>AgriRegistry</h1>
+        <p class="powered">Powered by <span>Luntian</span></p>
       </div>
-      <p class="loading">Loading registry</p>
-      <div class="progress" aria-hidden="true"></div>
     </section>
+    <p class="loading">Opening the registry</p>
+    <div class="progress" aria-hidden="true"></div>
   </main>
 </body>
 </html>

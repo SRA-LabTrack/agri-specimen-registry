@@ -2,102 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>AgriRegistry - Offline</title>
   <style>
     :root {
       color-scheme: light;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #eaf2e5;
-      color: #153c2b;
+      font-family: "Segoe UI", Inter, Arial, sans-serif;
+      color: #123b24;
     }
 
     * { box-sizing: border-box; }
 
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+    }
+
     body {
       min-height: 100vh;
-      margin: 0;
+      min-height: 100dvh;
       display: grid;
       place-items: center;
-      padding: 32px;
+      padding: 24px;
+      text-align: center;
       background:
-        radial-gradient(circle at top,rgba(54,112,78,.24),transparent 38%),
-        #eaf2e5;
+        radial-gradient(circle at 10% 10%, rgba(76,174,82,.4), transparent 31%),
+        radial-gradient(circle at 88% 14%, rgba(255,255,255,.98), transparent 35%),
+        linear-gradient(135deg, #cce8c4 0%, #fbfff9 48%, #d4edd5 100%);
     }
 
     main {
-      width: min(700px,100%);
-      padding: 28px;
-      border: 1px solid rgba(21,60,43,.15);
-      border-radius: 30px;
-      background: rgba(255,255,255,.97);
-      box-shadow: 0 24px 70px rgba(27,69,48,.18);
+      width: min(760px, 100%);
+      display: grid;
+      justify-items: center;
+      padding: clamp(24px, 5vw, 52px);
+      border: 1px solid rgba(255,255,255,.98);
+      border-radius: 34px;
+      text-align: center;
+      background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(232,247,228,.94));
+      box-shadow: 0 30px 90px rgba(25,91,46,.2);
     }
 
-    .logo {
-      padding: 15px;
-      border-radius: 20px;
-      background: linear-gradient(135deg,#fff,#eef7e9);
-      box-shadow: 0 14px 36px rgba(22,73,43,.13);
+    .brand {
+      display: grid;
+      justify-items: center;
+      gap: 10px;
     }
 
-    .logo img {
-      display: block;
-      width: 100%;
-      height: auto;
-      filter:
-        contrast(1.28)
-        brightness(1.08)
-        drop-shadow(0 4px 10px rgba(18,70,40,.2));
+    .brand img {
+      width: clamp(120px, 22vw, 190px);
+      height: clamp(120px, 22vw, 190px);
+      object-fit: contain;
+      filter: drop-shadow(0 16px 26px rgba(17,83,40,.23));
     }
+
+    .brand strong {
+      color: #075a2e;
+      font-size: clamp(2.4rem, 8vw, 5rem);
+      font-weight: 950;
+      line-height: .92;
+      letter-spacing: -.05em;
+    }
+
+    .brand small {
+      color: #a85d0d;
+      font-weight: 900;
+    }
+
+    .brand small span { color: #16833b; }
 
     h1 {
-      margin: 26px 0 0;
-      font-family: Georgia,serif;
-      font-size: clamp(32px,6vw,48px);
-      line-height: 1.05;
+      margin: 28px 0 0;
+      color: #123b24;
+      font-size: clamp(1.8rem, 5vw, 3.3rem);
+      line-height: 1.08;
+      text-align: center;
     }
 
-    p {
-      margin: 18px 0 0;
-      color: #506c5e;
-      font-size: 17px;
+    p,
+    small {
+      color: #456653;
       line-height: 1.65;
+      text-align: center;
     }
 
     button {
-      width: 100%;
+      width: min(420px, 100%);
       margin-top: 26px;
       padding: 16px 20px;
       border: 0;
       border-radius: 16px;
-      background: #1f6a43;
       color: white;
+      background: linear-gradient(135deg, #25814a, #115c32);
       font: inherit;
-      font-weight: 800;
+      font-weight: 900;
       cursor: pointer;
-    }
-
-    small {
-      display: block;
-      margin-top: 17px;
-      color: #71857a;
-      line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <main>
-    <div class="logo">
-      <img src="./assets/agriregistry-logo.png" alt="AgriRegistry">
+    <div class="brand">
+      <img src="./assets/agriregistry-icon.png" alt="">
+      <strong>AgriRegistry</strong>
+      <small>Powered by <span>Luntian</span></small>
     </div>
+
     <h1>The registry is waiting for a connection.</h1>
     <p>
       Open AgriRegistry online at least once and sign in. Once the website,
       records, and photographs are cached, offline changes stay on this
       computer and synchronize when the connection returns.
     </p>
+
     <button id="retry" type="button">Retry connection</button>
+
     <small>
       Do not uninstall the application or clear its data while changes are
       waiting to synchronize.
