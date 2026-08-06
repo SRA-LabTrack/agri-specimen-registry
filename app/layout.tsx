@@ -21,14 +21,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return <html lang="en"><body><ServiceWorkerRegister /><BrandSplash />{children}
 
-
-        {/* AGRIREGISTRY_SAFE_UI_V11_8_ASSETS */}
+        {/* AGRIREGISTRY_NATIVE_TOOLBAR_V11_9_ASSETS */}
         <link
           rel="stylesheet"
-          href="/agriregistry-safe-ui-v11-8.css?v=11.8.0"
+          href="/agriregistry-native-toolbar-v11-9.css?v=11.9.0"
         />
         <script
-          src="/agriregistry-safe-ui-v11-8.js?v=11.8.0"
+          src="/agriregistry-native-toolbar-v11-9.js?v=11.9.0"
           defer
         ></script>
       </body></html>;
