@@ -26,5 +26,15 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           src="/agriregistry-ui-cleanup-v12.js?v=12.1.0"
           defer
         ></script>
+      
+        {/* AGRIREGISTRY_FINAL_TOOLBAR_V12_2_ASSETS */}
+        <link
+          rel="stylesheet"
+          href="/agriregistry-final-toolbar-v12-2.css?v=12.2.0"
+        />
+        <script
+          src="/agriregistry-final-toolbar-v12-2.js?v=12.2.0"
+          defer
+        ></script>
       </body></html>;
 }
