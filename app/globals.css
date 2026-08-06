@@ -2329,8 +2329,9 @@ body::before {
 }
 /* AGRIREGISTRY WINDOW CONTROLS V7 END */
 
-/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.4 START
-   Source-level repair only. Keeps the original toolbar markup and actions.
+/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.5 START
+   Keeps the original toolbar. Repairs the Registry button and book icon,
+   while preserving the account card and one-row desktop layout.
 */
 @media (min-width: 1061px) {
   .dashboard-shell {
@@ -2338,30 +2339,37 @@ body::before {
   }
 
   .topbar {
-    width: min(1560px, calc(100% - 32px));
-    max-width: calc(100% - 32px);
+    width: min(1580px, calc(100% - 20px));
+    max-width: calc(100% - 20px);
     min-width: 0;
     min-height: 92px;
-    padding: 10px 12px;
-    gap: 8px;
+    padding: 10px;
+    gap: 6px;
     flex-flow: row nowrap;
     justify-content: flex-start;
     overflow: hidden;
   }
 
   .agriregistry-topbar-brand {
-    flex: 0 0 clamp(205px, 15vw, 260px);
-    width: clamp(205px, 15vw, 260px);
-    min-width: 205px;
-    max-width: 260px;
+    position: relative;
+    z-index: 2;
+    flex: 0 0 clamp(210px, 14vw, 230px);
+    width: clamp(210px, 14vw, 230px);
+    min-width: 210px;
+    max-width: 230px;
+    overflow: hidden;
   }
 
   .agriregistry-topbar-brand .agriregistry-logo-surface {
     width: 100%;
+    min-width: 0;
     max-width: 100%;
+    overflow: hidden;
   }
 
   .nav-actions {
+    position: relative;
+    z-index: 1;
     flex: 1 1 auto;
     width: auto;
     min-width: 0;
@@ -2369,9 +2377,9 @@ body::before {
     display: flex;
     flex-flow: row nowrap;
     align-items: center;
-    justify-content: flex-end;
-    gap: 7px;
-    overflow: hidden;
+    justify-content: flex-start;
+    gap: 6px;
+    overflow: visible;
   }
 
   .nav-actions > button {
@@ -2380,56 +2388,98 @@ body::before {
     height: 64px;
     min-height: 64px;
     max-height: 64px;
-    padding: 0 12px;
+    padding: 0 10px;
+    gap: 7px;
     white-space: nowrap;
+    overflow: hidden;
   }
 
   .nav-actions > button > span,
   .nav-actions > button strong,
   .nav-actions > button small {
+    min-width: 0;
     white-space: nowrap;
   }
 
-  .sync-chip {
+  /* Registry button: never allow the left edge, text, or book icon to be clipped. */
+  .nav-actions > .ghost-button:first-child {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 116px;
+    width: 116px;
+    min-width: 116px;
+    max-width: 116px;
+    padding: 0 11px;
+    justify-content: center;
+    overflow: visible;
+  }
+
+  .nav-actions > .ghost-button:first-child svg {
+    display: block;
+    flex: 0 0 20px;
+    width: 20px;
+    min-width: 20px;
+    max-width: 20px;
+    height: 20px;
+    min-height: 20px;
+    max-height: 20px;
+    overflow: visible;
+  }
+
+  .nav-actions > .ghost-button:nth-child(2) {
+    flex-basis: 140px;
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+  }
+
+  .nav-actions > .primary-button:nth-child(3) {
+    flex-basis: 145px;
     width: 145px;
     min-width: 145px;
     max-width: 145px;
   }
 
+  .sync-chip {
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+  }
+
   .desktop-update-check-button {
-    width: 116px;
-    min-width: 116px;
-    max-width: 116px;
+    width: 105px;
+    min-width: 105px;
+    max-width: 105px;
   }
 
   .desktop-window-button.fullscreen {
-    width: 150px;
-    min-width: 150px;
-    max-width: 150px;
+    width: 145px;
+    min-width: 145px;
+    max-width: 145px;
   }
 
   .desktop-window-button.minimize {
-    width: 122px;
-    min-width: 122px;
-    max-width: 122px;
+    width: 115px;
+    min-width: 115px;
+    max-width: 115px;
   }
 
   .desktop-exit-button {
-    width: 88px;
-    min-width: 88px;
-    max-width: 88px;
+    width: 78px;
+    min-width: 78px;
+    max-width: 78px;
   }
 
   .profile-button {
-    flex: 0 0 220px;
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
+    flex: 0 0 215px;
+    width: 215px;
+    min-width: 215px;
+    max-width: 215px;
     height: 64px;
     min-height: 64px;
     max-height: 64px;
-    padding: 7px 9px;
-    gap: 9px;
+    padding: 7px 8px;
+    gap: 8px;
     overflow: hidden;
   }
 
@@ -2463,26 +2513,28 @@ body::before {
   }
 
   .profile-button > svg {
+    display: block;
     flex: 0 0 18px;
     width: 18px;
     min-width: 18px;
     max-width: 18px;
+    height: 18px;
   }
 }
 
 @media (min-width: 1061px) and (max-width: 1500px) {
   .topbar {
-    width: calc(100% - 20px);
-    max-width: calc(100% - 20px);
-    padding-inline: 8px;
+    width: calc(100% - 16px);
+    max-width: calc(100% - 16px);
+    padding-inline: 7px;
     gap: 4px;
   }
 
   .agriregistry-topbar-brand {
-    flex-basis: 180px;
-    width: 180px;
-    min-width: 180px;
-    max-width: 180px;
+    flex-basis: 175px;
+    width: 175px;
+    min-width: 175px;
+    max-width: 175px;
   }
 
   .agriregistry-topbar-brand .agriregistry-logo-surface {
@@ -2491,12 +2543,19 @@ body::before {
   }
 
   .agriregistry-topbar-brand .agriregistry-emblem {
+    flex: 0 0 38px;
     width: 38px;
+    min-width: 38px;
+    max-width: 38px;
     height: 38px;
   }
 
   .agriregistry-topbar-brand .agriregistry-brand-copy strong {
-    font-size: 1rem;
+    font-size: .96rem;
+  }
+
+  .agriregistry-topbar-brand .agriregistry-brand-copy small {
+    font-size: .46rem;
   }
 
   .nav-actions {
@@ -2509,62 +2568,76 @@ body::before {
     max-height: 58px;
     padding-inline: 7px;
     gap: 6px;
-    font-size: .76rem;
+    font-size: .75rem;
   }
 
-  .nav-actions > .ghost-button:nth-child(1) {
+  .nav-actions > .ghost-button:first-child {
+    flex-basis: 105px;
     width: 105px;
     min-width: 105px;
     max-width: 105px;
+    padding-inline: 8px;
+  }
+
+  .nav-actions > .ghost-button:first-child svg {
+    flex-basis: 19px;
+    width: 19px;
+    min-width: 19px;
+    max-width: 19px;
+    height: 19px;
+    min-height: 19px;
+    max-height: 19px;
   }
 
   .nav-actions > .ghost-button:nth-child(2) {
-    width: 125px;
-    min-width: 125px;
-    max-width: 125px;
+    flex-basis: 120px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
   }
 
   .nav-actions > .primary-button:nth-child(3) {
-    width: 130px;
-    min-width: 130px;
-    max-width: 130px;
+    flex-basis: 125px;
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
   }
 
   .sync-chip {
-    width: 125px;
-    min-width: 125px;
-    max-width: 125px;
+    width: 122px;
+    min-width: 122px;
+    max-width: 122px;
   }
 
   .desktop-update-check-button {
-    width: 98px;
-    min-width: 98px;
-    max-width: 98px;
+    width: 92px;
+    min-width: 92px;
+    max-width: 92px;
   }
 
   .desktop-window-button.fullscreen {
-    width: 125px;
-    min-width: 125px;
-    max-width: 125px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
   }
 
   .desktop-window-button.minimize {
-    width: 100px;
-    min-width: 100px;
-    max-width: 100px;
+    width: 95px;
+    min-width: 95px;
+    max-width: 95px;
   }
 
   .desktop-exit-button {
-    width: 72px;
-    min-width: 72px;
-    max-width: 72px;
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
   }
 
   .profile-button {
-    flex-basis: 185px;
-    width: 185px;
-    min-width: 185px;
-    max-width: 185px;
+    flex-basis: 180px;
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
     height: 58px;
     min-height: 58px;
     max-height: 58px;
@@ -2583,11 +2656,11 @@ body::before {
   }
 
   .profile-button strong {
-    font-size: .74rem;
+    font-size: .73rem;
   }
 
   .profile-button small {
-    font-size: .61rem;
+    font-size: .6rem;
   }
 }
-/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.4 END */
+/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.5 END */
