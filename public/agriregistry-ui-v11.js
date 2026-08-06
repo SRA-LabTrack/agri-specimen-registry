@@ -859,3 +859,147 @@
   }, 500);
   refresh();
 })();
+
+/* AGRIREGISTRY_UI_V11_4_VIEWPORT_TOOLBAR_FIX_START */
+(() => {
+  "use strict";
+
+  const TOOLBAR_SELECTOR = ".agriregistry-v11-toolbar";
+  const FIXED_CLASS = "agriregistry-v11-viewport-fixed";
+  const HOST_CLASS = "agriregistry-v11-toolbar-overflow-host";
+  let scheduledFrame = 0;
+  let settleTimer = 0;
+
+  const visible = (element) => {
+    if (!(element instanceof HTMLElement)) return false;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      rect.width > 0 &&
+      rect.height > 0;
+  };
+
+  const normalize = (value) => String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  function scoreToolbar(toolbar) {
+    const text = normalize(toolbar.textContent);
+    const labels = [
+      "registry",
+      "import excel",
+      "add specimen",
+      "updates",
+      "minimize",
+      "exit",
+    ];
+
+    let score = labels.reduce(
+      (total, label) => total + (text.includes(label) ? 10 : 0),
+      0,
+    );
+
+    if (toolbar.querySelector("img")) score += 8;
+    if (/online|offline copy ready|syncing/.test(text)) score += 8;
+    if (/\S+@\S+\.\S+/.test(toolbar.textContent || "")) score += 8;
+
+    const rect = toolbar.getBoundingClientRect();
+    if (rect.top < 320) score += 6;
+    if (rect.height < 280) score += 6;
+    score += Math.min(rect.width / 100, 12);
+    return score;
+  }
+
+  function chooseToolbar() {
+    return Array.from(document.querySelectorAll(TOOLBAR_SELECTOR))
+      .filter(visible)
+      .sort((a, b) => scoreToolbar(b) - scoreToolbar(a))[0] || null;
+  }
+
+  function clearOldHosts(toolbar) {
+    document.querySelectorAll(`.${HOST_CLASS}`).forEach((host) => {
+      if (!host.contains(toolbar)) host.classList.remove(HOST_CLASS);
+    });
+  }
+
+  function markSafeOverflowHosts(toolbar) {
+    clearOldHosts(toolbar);
+    let current = toolbar.parentElement;
+    for (let depth = 0; current && current !== document.body && depth < 5; depth += 1) {
+      const rect = current.getBoundingClientRect();
+      if (rect.height > 0 && rect.height < 420) {
+        current.classList.add(HOST_CLASS);
+      }
+      current = current.parentElement;
+    }
+  }
+
+  function applyViewportPosition() {
+    const toolbar = chooseToolbar();
+    if (!toolbar) return;
+
+    document.querySelectorAll(`${TOOLBAR_SELECTOR}.${FIXED_CLASS}`).forEach((candidate) => {
+      if (candidate !== toolbar) {
+        candidate.classList.remove(FIXED_CLASS);
+        candidate.style.removeProperty("--agriregistry-v11-toolbar-shift-x");
+        candidate.style.removeProperty("--agriregistry-v11-toolbar-viewport-width");
+      }
+    });
+
+    toolbar.classList.add(FIXED_CLASS);
+    markSafeOverflowHosts(toolbar);
+
+    const viewportWidth = Math.max(
+      document.documentElement.clientWidth || 0,
+      window.innerWidth || 0,
+    );
+    const inset = Math.max(12, Math.min(32, Math.round(viewportWidth * 0.02)));
+    const availableWidth = Math.max(280, viewportWidth - (inset * 2));
+
+    toolbar.style.setProperty(
+      "--agriregistry-v11-toolbar-viewport-width",
+      `${availableWidth}px`,
+    );
+    toolbar.style.setProperty(
+      "--agriregistry-v11-toolbar-shift-x",
+      "0px",
+    );
+
+    void toolbar.offsetWidth;
+    const rect = toolbar.getBoundingClientRect();
+    const shift = Math.round(inset - rect.left);
+
+    toolbar.style.setProperty(
+      "--agriregistry-v11-toolbar-shift-x",
+      `${shift}px`,
+    );
+  }
+
+  function schedulePosition() {
+    if (scheduledFrame) cancelAnimationFrame(scheduledFrame);
+    scheduledFrame = requestAnimationFrame(() => {
+      scheduledFrame = 0;
+      applyViewportPosition();
+    });
+
+    clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(applyViewportPosition, 180);
+  }
+
+  const observer = new MutationObserver(schedulePosition);
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+
+  window.addEventListener("resize", schedulePosition, { passive: true });
+  window.addEventListener("orientationchange", schedulePosition, { passive: true });
+  window.addEventListener("pageshow", schedulePosition, { passive: true });
+  document.addEventListener("DOMContentLoaded", schedulePosition, { once: true });
+
+  window.setInterval(schedulePosition, 1200);
+  schedulePosition();
+})();
+/* AGRIREGISTRY_UI_V11_4_VIEWPORT_TOOLBAR_FIX_END */
