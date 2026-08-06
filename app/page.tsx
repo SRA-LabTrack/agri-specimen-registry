@@ -24,6 +24,9 @@ import {
   LogOut,
   MapPin,
   Menu,
+  Maximize2,
+  Minimize2,
+  Shrink,
   RefreshCw,
   Plus,
   Search,
@@ -650,6 +653,13 @@ export default function Home() {
   const [isOnline, setIsOnline] = useState(true);
   // AGRIREGISTRY_DESKTOP_EXIT_V7_STATE
   const [isDesktopApp, setIsDesktopApp] = useState(false);
+  // AGRIREGISTRY_WINDOW_CONTROLS_V7_STATE
+  const [desktopWindowState, setDesktopWindowState] =
+    useState<AgriRegistryWindowState>({
+      isFullScreen: true,
+      isMaximized: false,
+      isMinimized: false,
+    });
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -658,8 +668,46 @@ export default function Home() {
 
   // AGRIREGISTRY_DESKTOP_EXIT_V7_FUNCTION
   useEffect(() => {
-    setIsDesktopApp(navigator.userAgent.toLowerCase().includes("electron"));
+    const desktop = window.agriregistryDesktop;
+    const detected =
+      Boolean(desktop)
+      || navigator.userAgent.toLowerCase().includes("electron");
+
+    setIsDesktopApp(detected);
+
+    if (!desktop) return;
+
+    let active = true;
+
+    void desktop.getWindowState().then((state) => {
+      if (active) setDesktopWindowState(state);
+    });
+
+    const dispose = desktop.onWindowState((state) => {
+      if (active) setDesktopWindowState(state);
+    });
+
+    return () => {
+      active = false;
+      if (typeof dispose === "function") dispose();
+    };
   }, []);
+
+  // AGRIREGISTRY_WINDOW_CONTROLS_V7_FUNCTIONS
+  const toggleDesktopFullScreen = async () => {
+    const desktop = window.agriregistryDesktop;
+    if (!desktop) return;
+
+    const state = desktopWindowState.isFullScreen
+      ? await desktop.exitFullScreen()
+      : await desktop.enterFullScreen();
+
+    setDesktopWindowState(state);
+  };
+
+  const minimizeDesktopApp = () => {
+    window.agriregistryDesktop?.minimizeApp();
+  };
 
   const exitDesktopApp = () => {
     if (!isDesktopApp) return;
@@ -1604,6 +1652,50 @@ export default function Home() {
       <main className="auth-page">
         {/* AGRIREGISTRY_AUTO_UPDATE_V9_AUTH_BANNER */}
         <DesktopUpdateBanner />
+        {/* AGRIREGISTRY_WINDOW_CONTROLS_V7_AUTH */}
+        {isDesktopApp && (
+          <div className="desktop-auth-window-controls">
+            <button
+              type="button"
+              onClick={() => {
+                void toggleDesktopFullScreen();
+              }}
+              title={
+                desktopWindowState.isFullScreen
+                  ? "Exit full screen"
+                  : "Enter full screen"
+              }
+            >
+              {desktopWindowState.isFullScreen
+                ? <Shrink />
+                : <Maximize2 />}
+              <span>
+                {desktopWindowState.isFullScreen
+                  ? "Exit full screen"
+                  : "Full screen"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={minimizeDesktopApp}
+              title="Minimize AgriRegistry"
+            >
+              <Minimize2 />
+              <span>Minimize</span>
+            </button>
+
+            <button
+              type="button"
+              className="close"
+              onClick={exitDesktopApp}
+              title="Close AgriRegistry"
+            >
+              <X />
+              <span>Close</span>
+            </button>
+          </div>
+        )}
         <div className="field-glow field-glow-one" />
         <div className="field-glow field-glow-two" />
         <section className="auth-intro reveal is-visible">
@@ -1708,6 +1800,48 @@ export default function Home() {
               <RefreshCw />
               <span>Updates</span>
             </button>
+          )}
+          {/* AGRIREGISTRY_WINDOW_CONTROLS_V7_BUTTONS */}
+          {isDesktopApp && (
+            <>
+              <button
+                className="desktop-window-button fullscreen"
+                type="button"
+                onClick={() => {
+                  void toggleDesktopFullScreen();
+                }}
+                title={
+                  desktopWindowState.isFullScreen
+                    ? "Exit full screen"
+                    : "Enter full screen"
+                }
+                aria-label={
+                  desktopWindowState.isFullScreen
+                    ? "Exit full screen"
+                    : "Enter full screen"
+                }
+              >
+                {desktopWindowState.isFullScreen
+                  ? <Shrink />
+                  : <Maximize2 />}
+                <span>
+                  {desktopWindowState.isFullScreen
+                    ? "Exit full screen"
+                    : "Full screen"}
+                </span>
+              </button>
+
+              <button
+                className="desktop-window-button minimize"
+                type="button"
+                onClick={minimizeDesktopApp}
+                title="Minimize AgriRegistry"
+                aria-label="Minimize AgriRegistry"
+              >
+                <Minimize2 />
+                <span>Minimize</span>
+              </button>
+            </>
           )}
           {/* AGRIREGISTRY_DESKTOP_EXIT_V7_BUTTON */}
           {isDesktopApp && (

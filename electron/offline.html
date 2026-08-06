@@ -105,7 +105,7 @@
     .offline-actions {
       width: min(620px, 100%);
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
       margin-top: 26px;
     }
@@ -143,6 +143,9 @@
 
     <div class="offline-actions">
       <button id="retry" type="button">Retry connection</button>
+      <!-- AGRIREGISTRY_WINDOW_CONTROLS_V7_OFFLINE_BUTTONS -->
+      <button id="fullscreen" type="button">Exit full screen</button>
+      <button id="minimize" type="button">Minimize</button>
       <button id="exit" type="button">Exit AgriRegistry</button>
     </div>
 
@@ -163,10 +166,44 @@
 
     document.getElementById("retry").addEventListener("click", retry);
 
+    // AGRIREGISTRY_WINDOW_CONTROLS_V7_OFFLINE_SCRIPT
+    const desktop = window.agriregistryDesktop;
+
+    async function refreshFullscreenLabel() {
+      if (!desktop) return;
+
+      const state = await desktop.getWindowState();
+      document.getElementById("fullscreen").textContent =
+        state.isFullScreen ? "Exit full screen" : "Full screen";
+    }
+
+    document.getElementById("fullscreen").addEventListener("click", async () => {
+      if (!desktop) return;
+
+      const state = await desktop.toggleFullScreen();
+      document.getElementById("fullscreen").textContent =
+        state.isFullScreen ? "Exit full screen" : "Full screen";
+    });
+
+    document.getElementById("minimize").addEventListener("click", () => {
+      desktop?.minimizeApp();
+    });
+
+    desktop?.onWindowState((state) => {
+      document.getElementById("fullscreen").textContent =
+        state.isFullScreen ? "Exit full screen" : "Full screen";
+    });
+
+    void refreshFullscreenLabel();
+
     // AGRIREGISTRY_OFFLINE_EXIT_V7_SCRIPT
     document.getElementById("exit").addEventListener("click", () => {
       if (window.confirm("Exit AgriRegistry?")) {
-        window.location.href = "agriregistry://exit";
+        if (window.agriregistryDesktop) {
+          window.agriregistryDesktop.closeApp();
+        } else {
+          window.location.href = "agriregistry://exit";
+        }
       }
     });
     window.addEventListener("online", retry);

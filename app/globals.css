@@ -2217,3 +2217,114 @@ body::before {
   }
 }
 /* AGRIREGISTRY OFFLINE FIRST V13 END */
+
+/* AGRIREGISTRY WINDOW CONTROLS V7 START */
+.desktop-window-button {
+  min-height: 43px;
+  padding: 0 14px;
+  border: 1px solid rgba(22, 86, 45, .16);
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #174c2d;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .96), rgba(224, 242, 219, .94));
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, .95),
+    0 8px 20px rgba(23, 85, 44, .08);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+.desktop-window-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(22, 108, 53, .32);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, .98),
+    0 12px 26px rgba(23, 85, 44, .13);
+}
+
+.desktop-window-button svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.desktop-window-button.minimize {
+  color: #31573d;
+}
+
+.desktop-auth-window-controls {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1400;
+  width: min(360px, calc(100vw - 36px));
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, .96);
+  border-radius: 20px;
+  display: grid;
+  grid-template-columns: 1.25fr 1fr .85fr;
+  gap: 8px;
+  background:
+    linear-gradient(145deg, rgba(246, 255, 243, .96), rgba(225, 244, 220, .94));
+  box-shadow:
+    0 18px 48px rgba(17, 74, 37, .18),
+    inset 0 1px rgba(255, 255, 255, .98);
+  backdrop-filter: blur(18px);
+}
+
+.desktop-auth-window-controls button {
+  min-height: 46px;
+  padding: 8px 9px;
+  border: 1px solid rgba(22, 86, 45, .14);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  color: #174c2d;
+  background: rgba(255, 255, 255, .82);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.desktop-auth-window-controls button.close {
+  color: #9e2e28;
+  background: rgba(255, 247, 245, .9);
+}
+
+.desktop-auth-window-controls svg {
+  width: 17px;
+  height: 17px;
+}
+
+@media (max-width: 1060px) {
+  .desktop-window-button span {
+    display: none;
+  }
+
+  .desktop-window-button {
+    width: 43px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .desktop-auth-window-controls {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+}
+/* AGRIREGISTRY WINDOW CONTROLS V7 END */

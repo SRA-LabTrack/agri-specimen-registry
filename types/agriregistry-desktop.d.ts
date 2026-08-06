@@ -20,6 +20,13 @@ declare global {
     showBanner?: boolean;
   }
 
+  // AGRIREGISTRY_WINDOW_CONTROLS_V7_TYPES
+  interface AgriRegistryWindowState {
+    isFullScreen: boolean;
+    isMaximized: boolean;
+    isMinimized: boolean;
+  }
+
   interface AgriRegistryDesktopAPI {
     isDesktop: true;
     getAppVersion: () => Promise<string>;
@@ -27,7 +34,16 @@ declare global {
     checkForUpdates: () => Promise<AgriRegistryUpdateState>;
     downloadUpdate: () => Promise<AgriRegistryUpdateState>;
     installUpdate: () => void;
+    getWindowState: () => Promise<AgriRegistryWindowState>;
+    enterFullScreen: () => Promise<AgriRegistryWindowState>;
+    exitFullScreen: () => Promise<AgriRegistryWindowState>;
+    toggleFullScreen: () => Promise<AgriRegistryWindowState>;
+    minimizeApp: () => void;
+    closeApp: () => void;
     exitApp: () => void;
+    onWindowState: (
+      callback: (state: AgriRegistryWindowState) => void,
+    ) => (() => void) | void;
     onUpdateState: (
       callback: (state: AgriRegistryUpdateState) => void,
     ) => (() => void) | void;

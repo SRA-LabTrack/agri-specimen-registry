@@ -23,6 +23,86 @@ let splashWindow = null;
 let loadingFallback = false;
 let splashStartedAt = 0;
 
+// AGRIREGISTRY_WINDOW_CONTROLS_V7_CORE
+const WINDOW_STATE_CHANNEL = "agriregistry:window:state";
+
+function currentWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return {
+      isFullScreen: false,
+      isMaximized: false,
+      isMinimized: false,
+    };
+  }
+
+  return {
+    isFullScreen: mainWindow.isFullScreen(),
+    isMaximized: mainWindow.isMaximized(),
+    isMinimized: mainWindow.isMinimized(),
+  };
+}
+
+function broadcastWindowState() {
+  const state = currentWindowState();
+
+  if (
+    mainWindow
+    && !mainWindow.isDestroyed()
+    && !mainWindow.webContents.isDestroyed()
+  ) {
+    mainWindow.webContents.send(
+      WINDOW_STATE_CHANNEL,
+      state,
+    );
+  }
+
+  return state;
+}
+
+function enterMainWindowFullScreen() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return currentWindowState();
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.setFullScreen(true);
+  mainWindow.show();
+  mainWindow.focus();
+
+  setTimeout(broadcastWindowState, 50);
+  return currentWindowState();
+}
+
+function exitMainWindowFullScreen() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return currentWindowState();
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.setFullScreen(false);
+  mainWindow.show();
+  mainWindow.focus();
+
+  setTimeout(broadcastWindowState, 50);
+  return currentWindowState();
+}
+
+function toggleMainWindowFullScreen() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return currentWindowState();
+  }
+
+  return mainWindow.isFullScreen()
+    ? exitMainWindowFullScreen()
+    : enterMainWindowFullScreen();
+}
+
 // AGRIREGISTRY_AUTO_UPDATE_V9_CORE
 let lastUpdateCheckWasManual = false;
 let updateDownloadStarted = false;
@@ -277,6 +357,38 @@ function configureAutoUpdater() {
     app.quit();
   });
 
+  // AGRIREGISTRY_WINDOW_CONTROLS_V7_IPC
+  ipcMain.handle(
+    "agriregistry:window:get-state",
+    () => currentWindowState(),
+  );
+
+  ipcMain.handle(
+    "agriregistry:window:enter-fullscreen",
+    () => enterMainWindowFullScreen(),
+  );
+
+  ipcMain.handle(
+    "agriregistry:window:exit-fullscreen",
+    () => exitMainWindowFullScreen(),
+  );
+
+  ipcMain.handle(
+    "agriregistry:window:toggle-fullscreen",
+    () => toggleMainWindowFullScreen(),
+  );
+
+  ipcMain.on("agriregistry:window:minimize", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+      setTimeout(broadcastWindowState, 50);
+    }
+  });
+
+  ipcMain.on("agriregistry:window:close", () => {
+    app.quit();
+  });
+
   if (app.isPackaged) {
     setTimeout(() => {
       void checkForDesktopUpdates(false);
@@ -473,8 +585,23 @@ function createWindow() {
   mainWindow.webContents.on("before-input-event", (event, input) => {
     if (input.type === "keyDown" && input.key === "F11") {
       event.preventDefault();
-      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      toggleMainWindowFullScreen();
     }
+  });
+
+  // AGRIREGISTRY_WINDOW_CONTROLS_V7_EVENTS
+  [
+    "enter-full-screen",
+    "leave-full-screen",
+    "maximize",
+    "unmaximize",
+    "minimize",
+    "restore",
+    "show",
+  ].forEach((eventName) => {
+    mainWindow.on(eventName, () => {
+      setTimeout(broadcastWindowState, 40);
+    });
   });
 
   mainWindow.webContents.on(
@@ -499,6 +626,7 @@ function createWindow() {
   // AGRIREGISTRY_AUTO_UPDATE_V9_FINISH_LOAD
   mainWindow.webContents.on("did-finish-load", () => {
     broadcastUpdateState();
+    broadcastWindowState();
   });
 
   mainWindow.once("ready-to-show", revealMainWindow);
