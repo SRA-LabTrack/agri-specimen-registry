@@ -860,146 +860,481 @@
   refresh();
 })();
 
-/* AGRIREGISTRY_UI_V11_4_VIEWPORT_TOOLBAR_FIX_START */
+/* AGRIREGISTRY_UI_V11_5_FIXED_VIEWPORT_TOOLBAR_START */
 (() => {
   "use strict";
 
-  const TOOLBAR_SELECTOR = ".agriregistry-v11-toolbar";
-  const FIXED_CLASS = "agriregistry-v11-viewport-fixed";
-  const HOST_CLASS = "agriregistry-v11-toolbar-overflow-host";
+  const TOOLBAR_CLASS = "agriregistry-v11-toolbar";
+  const FIXED_CLASS = "agriregistry-v11-fixed-toolbar";
+  const ANCESTOR_CLASS = "agriregistry-v11-fixed-toolbar-ancestor";
+  const OLD_FIXED_CLASS = "agriregistry-v11-viewport-fixed";
+
   let scheduledFrame = 0;
   let settleTimer = 0;
 
-  const visible = (element) => {
-    if (!(element instanceof HTMLElement)) return false;
-    const style = window.getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      rect.width > 0 &&
-      rect.height > 0;
-  };
+  const normalize = (value) =>
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
 
-  const normalize = (value) => String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+  const actionElements = (root = document) =>
+    Array.from(root.querySelectorAll("button, a, [role='button']"));
 
-  function scoreToolbar(toolbar) {
-    const text = normalize(toolbar.textContent);
+  function findAction(label, root = document) {
+    const target = normalize(label);
+    return actionElements(root).find(
+      (element) => normalize(element.textContent) === target,
+    ) || null;
+  }
+
+  function elementScore(element) {
+    if (!(element instanceof HTMLElement)) return -1;
+
+    const text = normalize(element.textContent);
     const labels = [
       "registry",
       "import excel",
       "add specimen",
       "updates",
+      "full screen",
+      "exit full screen",
       "minimize",
       "exit",
     ];
 
     let score = labels.reduce(
-      (total, label) => total + (text.includes(label) ? 10 : 0),
+      (total, label) => total + (text.includes(label) ? 12 : 0),
       0,
     );
 
-    if (toolbar.querySelector("img")) score += 8;
-    if (/online|offline copy ready|syncing/.test(text)) score += 8;
-    if (/\S+@\S+\.\S+/.test(toolbar.textContent || "")) score += 8;
+    if (element.querySelector("img, picture, svg")) score += 10;
+    if (/online|offline copy ready|syncing|connected/.test(text)) score += 8;
+    if (/\S+@\S+\.\S+/.test(element.textContent || "")) score += 8;
 
-    const rect = toolbar.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
     if (rect.top < 320) score += 6;
-    if (rect.height < 280) score += 6;
-    score += Math.min(rect.width / 100, 12);
+    if (rect.height > 50 && rect.height < 360) score += 8;
+    score += Math.min(rect.width / 120, 12);
+
     return score;
   }
 
-  function chooseToolbar() {
-    return Array.from(document.querySelectorAll(TOOLBAR_SELECTOR))
-      .filter(visible)
-      .sort((a, b) => scoreToolbar(b) - scoreToolbar(a))[0] || null;
-  }
+  function findToolbar() {
+    const marked = Array.from(
+      document.querySelectorAll(`.${TOOLBAR_CLASS}`),
+    ).filter((element) => element instanceof HTMLElement);
 
-  function clearOldHosts(toolbar) {
-    document.querySelectorAll(`.${HOST_CLASS}`).forEach((host) => {
-      if (!host.contains(toolbar)) host.classList.remove(HOST_CLASS);
-    });
-  }
+    if (marked.length) {
+      return marked.sort((a, b) => elementScore(b) - elementScore(a))[0];
+    }
 
-  function markSafeOverflowHosts(toolbar) {
-    clearOldHosts(toolbar);
-    let current = toolbar.parentElement;
-    for (let depth = 0; current && current !== document.body && depth < 5; depth += 1) {
-      const rect = current.getBoundingClientRect();
-      if (rect.height > 0 && rect.height < 420) {
-        current.classList.add(HOST_CLASS);
+    const seeds = [
+      findAction("Registry"),
+      findAction("Import Excel"),
+      findAction("Add specimen"),
+      findAction("Updates"),
+      findAction("Exit full screen") || findAction("Full screen"),
+      findAction("Minimize"),
+      findAction("Exit"),
+    ].filter(Boolean);
+
+    if (seeds.length < 3) return null;
+
+    const candidates = new Set();
+    for (const seed of seeds) {
+      let current = seed;
+      for (
+        let depth = 0;
+        current && current !== document.body && depth < 12;
+        depth += 1
+      ) {
+        if (current instanceof HTMLElement) candidates.add(current);
+        current = current.parentElement;
       }
+    }
+
+    return Array.from(candidates)
+      .filter((element) => {
+        const text = normalize(element.textContent);
+        return text.includes("registry") &&
+          text.includes("add specimen") &&
+          (text.includes("import excel") || text.includes("updates"));
+      })
+      .sort((a, b) => elementScore(b) - elementScore(a))[0] || null;
+  }
+
+  function topLevelUnit(element, toolbar) {
+    if (!element || !toolbar) return null;
+    let unit = element;
+    while (unit.parentElement && unit.parentElement !== toolbar) {
+      unit = unit.parentElement;
+    }
+    return unit;
+  }
+
+  function itemUnit(element, boundary) {
+    if (!element || !boundary) return element;
+    let unit = element;
+    while (unit.parentElement && unit.parentElement !== boundary) {
+      unit = unit.parentElement;
+    }
+    return unit;
+  }
+
+  function markControl(toolbar, actionsRoot, labels, key) {
+    const labelList = Array.isArray(labels) ? labels : [labels];
+    const action = labelList
+      .map((label) => findAction(label, toolbar))
+      .find(Boolean);
+
+    if (!action) return null;
+
+    action.classList.add("agriregistry-v11-control");
+    action.setAttribute("title", action.textContent?.trim() || labelList[0]);
+
+    const unit = itemUnit(action, actionsRoot) || action;
+    unit.classList.add(
+      "agriregistry-v11-item",
+      `agriregistry-v11-item-${key}`,
+    );
+
+    return { action, unit };
+  }
+
+  function markToolbarParts(toolbar) {
+    toolbar.classList.add(TOOLBAR_CLASS, FIXED_CLASS);
+    toolbar.classList.remove(OLD_FIXED_CLASS);
+    toolbar.style.removeProperty("--agriregistry-v11-toolbar-shift-x");
+    toolbar.style.removeProperty("--agriregistry-v11-toolbar-viewport-width");
+
+    const registryAction =
+      findAction("Registry", toolbar) ||
+      findAction("Add specimen", toolbar);
+
+    const possibleActionsRoot = topLevelUnit(registryAction, toolbar);
+    const possibleActionCount = possibleActionsRoot
+      ? actionElements(possibleActionsRoot).length
+      : 0;
+
+    const actionsRoot =
+      possibleActionsRoot &&
+      possibleActionsRoot !== registryAction &&
+      possibleActionCount >= 3
+        ? possibleActionsRoot
+        : toolbar;
+
+    if (actionsRoot !== toolbar) {
+      actionsRoot.classList.add("agriregistry-v11-actions");
+    }
+
+    const images = Array.from(
+      toolbar.querySelectorAll("img, picture, svg"),
+    ).filter((element) => element instanceof Element);
+
+    const logoElement = images.sort((a, b) => {
+      const aHint = normalize(
+        `${a.getAttribute("alt") || ""} ${a.getAttribute("src") || ""}`,
+      );
+      const bHint = normalize(
+        `${b.getAttribute("alt") || ""} ${b.getAttribute("src") || ""}`,
+      );
+      return Number(/logo|agriregistry/.test(bHint)) -
+        Number(/logo|agriregistry/.test(aHint));
+    })[0] || null;
+
+    if (logoElement) {
+      const logoUnit = topLevelUnit(logoElement, toolbar) || logoElement;
+      logoUnit.classList.add("agriregistry-v11-logo");
+    }
+
+    const registry = markControl(
+      toolbar,
+      actionsRoot,
+      "Registry",
+      "registry",
+    );
+    const importExcel = markControl(
+      toolbar,
+      actionsRoot,
+      "Import Excel",
+      "import",
+    );
+    const addSpecimen = markControl(
+      toolbar,
+      actionsRoot,
+      "Add specimen",
+      "add",
+    );
+    const updates = markControl(
+      toolbar,
+      actionsRoot,
+      "Updates",
+      "updates",
+    );
+    markControl(
+      toolbar,
+      actionsRoot,
+      ["Exit full screen", "Full screen"],
+      "fullscreen",
+    );
+    markControl(
+      toolbar,
+      actionsRoot,
+      "Minimize",
+      "minimize",
+    );
+    markControl(
+      toolbar,
+      actionsRoot,
+      "Exit",
+      "exit",
+    );
+
+    const controls = actionElements(toolbar);
+    const statusAction =
+      controls.find((control) => {
+        const hint = normalize(
+          `${control.textContent || ""} ` +
+          `${control.getAttribute("aria-label") || ""} ` +
+          `${control.getAttribute("title") || ""}`,
+        );
+        return /online|offline copy ready|syncing|connected|disconnected/.test(
+          hint,
+        );
+      }) ||
+      (() => {
+        const addIndex = controls.indexOf(addSpecimen?.action);
+        const updateIndex = controls.indexOf(updates?.action);
+        if (addIndex >= 0 && updateIndex > addIndex + 1) {
+          return controls[addIndex + 1];
+        }
+        return null;
+      })();
+
+    if (statusAction) {
+      statusAction.classList.add(
+        "agriregistry-v11-control",
+        "agriregistry-v11-status",
+      );
+
+      const statusUnit = itemUnit(statusAction, actionsRoot) || statusAction;
+      statusUnit.classList.add(
+        "agriregistry-v11-item",
+        "agriregistry-v11-item-status",
+      );
+    }
+
+    const profileCandidates = Array.from(
+      toolbar.querySelectorAll("div, section, aside"),
+    ).filter((element) => /\S+@\S+\.\S+/.test(element.textContent || ""));
+
+    if (profileCandidates.length) {
+      const profile = profileCandidates.sort((a, b) => {
+        const aRect = a.getBoundingClientRect();
+        const bRect = b.getBoundingClientRect();
+        return (aRect.width * aRect.height) - (bRect.width * bRect.height);
+      })[0];
+
+      const profileUnit = itemUnit(profile, actionsRoot) || profile;
+      profileUnit.classList.add("agriregistry-v11-profile");
+
+      Array.from(profileUnit.querySelectorAll("*"))
+        .filter((element) => /\S+@\S+\.\S+/.test(element.textContent || ""))
+        .forEach((element) => element.classList.add("agriregistry-v11-email"));
+    }
+
+    void registry;
+    void importExcel;
+  }
+
+  function clearOldAncestorMarks(toolbar) {
+    document
+      .querySelectorAll(`.${ANCESTOR_CLASS}`)
+      .forEach((element) => {
+        if (!element.contains(toolbar)) {
+          element.classList.remove(ANCESTOR_CLASS);
+        }
+      });
+  }
+
+  function neutralizeContainingBlocks(toolbar) {
+    clearOldAncestorMarks(toolbar);
+
+    let current = toolbar.parentElement;
+    for (
+      let depth = 0;
+      current && current !== document.body && depth < 16;
+      depth += 1
+    ) {
+      current.classList.add(ANCESTOR_CLASS);
+
+      const properties = {
+        transform: "none",
+        translate: "none",
+        rotate: "none",
+        scale: "none",
+        filter: "none",
+        perspective: "none",
+        contain: "none",
+        "content-visibility": "visible",
+        "will-change": "auto",
+        "clip-path": "none",
+        overflow: "visible",
+        "overflow-x": "visible",
+        "overflow-y": "visible",
+      };
+
+      for (const [property, value] of Object.entries(properties)) {
+        current.style.setProperty(property, value, "important");
+      }
+
       current = current.parentElement;
     }
   }
 
-  function applyViewportPosition() {
-    const toolbar = chooseToolbar();
-    if (!toolbar) return;
+  function setImportant(element, property, value) {
+    element.style.setProperty(property, value, "important");
+  }
 
-    document.querySelectorAll(`${TOOLBAR_SELECTOR}.${FIXED_CLASS}`).forEach((candidate) => {
-      if (candidate !== toolbar) {
-        candidate.classList.remove(FIXED_CLASS);
-        candidate.style.removeProperty("--agriregistry-v11-toolbar-shift-x");
-        candidate.style.removeProperty("--agriregistry-v11-toolbar-viewport-width");
-      }
-    });
-
-    toolbar.classList.add(FIXED_CLASS);
-    markSafeOverflowHosts(toolbar);
-
+  function pinToViewport(toolbar) {
     const viewportWidth = Math.max(
       document.documentElement.clientWidth || 0,
       window.innerWidth || 0,
     );
-    const inset = Math.max(12, Math.min(32, Math.round(viewportWidth * 0.02)));
-    const availableWidth = Math.max(280, viewportWidth - (inset * 2));
+
+    const desiredLeft = Math.max(
+      12,
+      Math.min(28, Math.round(viewportWidth * 0.015)),
+    );
+    const desiredTop = Math.max(
+      10,
+      Math.min(22, Math.round(viewportWidth * 0.011)),
+    );
+    const availableWidth = Math.max(
+      300,
+      viewportWidth - (desiredLeft * 2),
+    );
 
     toolbar.style.setProperty(
-      "--agriregistry-v11-toolbar-viewport-width",
+      "--agriregistry-v11-fixed-left",
+      `${desiredLeft}px`,
+    );
+    toolbar.style.setProperty(
+      "--agriregistry-v11-fixed-top",
+      `${desiredTop}px`,
+    );
+    toolbar.style.setProperty(
+      "--agriregistry-v11-fixed-width",
       `${availableWidth}px`,
     );
-    toolbar.style.setProperty(
-      "--agriregistry-v11-toolbar-shift-x",
-      "0px",
-    );
 
-    void toolbar.offsetWidth;
-    const rect = toolbar.getBoundingClientRect();
-    const shift = Math.round(inset - rect.left);
+    const properties = {
+      position: "fixed",
+      inset: "auto",
+      top: `${desiredTop}px`,
+      left: `${desiredLeft}px`,
+      right: "auto",
+      bottom: "auto",
+      width: `${availableWidth}px`,
+      "min-width": "0",
+      "max-width": "none",
+      margin: "0",
+      transform: "none",
+      translate: "none",
+      scale: "none",
+      rotate: "none",
+      "z-index": "2147483000",
+    };
 
-    toolbar.style.setProperty(
-      "--agriregistry-v11-toolbar-shift-x",
-      `${shift}px`,
-    );
+    for (const [property, value] of Object.entries(properties)) {
+      setImportant(toolbar, property, value);
+    }
+
+    /*
+      Compensation step:
+      Chromium may still treat a deeply transformed application wrapper as the
+      fixed-position containing block for one frame. Correct the measured
+      viewport offset directly, so the toolbar lands at the left edge even in
+      that case.
+    */
+    for (let pass = 0; pass < 3; pass += 1) {
+      const rect = toolbar.getBoundingClientRect();
+      const horizontalError = desiredLeft - rect.left;
+      const verticalError = desiredTop - rect.top;
+
+      if (
+        Math.abs(horizontalError) < 0.75 &&
+        Math.abs(verticalError) < 0.75
+      ) {
+        break;
+      }
+
+      const currentLeft =
+        Number.parseFloat(toolbar.style.getPropertyValue("left")) ||
+        desiredLeft;
+      const currentTop =
+        Number.parseFloat(toolbar.style.getPropertyValue("top")) ||
+        desiredTop;
+
+      setImportant(
+        toolbar,
+        "left",
+        `${currentLeft + horizontalError}px`,
+      );
+      setImportant(
+        toolbar,
+        "top",
+        `${currentTop + verticalError}px`,
+      );
+    }
   }
 
-  function schedulePosition() {
+  function applyFix() {
+    const toolbar = findToolbar();
+    if (!toolbar) return;
+
+    document
+      .querySelectorAll(`.${TOOLBAR_CLASS}.${FIXED_CLASS}`)
+      .forEach((candidate) => {
+        if (candidate !== toolbar) {
+          candidate.classList.remove(FIXED_CLASS);
+        }
+      });
+
+    markToolbarParts(toolbar);
+    neutralizeContainingBlocks(toolbar);
+    pinToViewport(toolbar);
+  }
+
+  function scheduleFix() {
     if (scheduledFrame) cancelAnimationFrame(scheduledFrame);
+
     scheduledFrame = requestAnimationFrame(() => {
       scheduledFrame = 0;
-      applyViewportPosition();
+      applyFix();
     });
 
     clearTimeout(settleTimer);
-    settleTimer = window.setTimeout(applyViewportPosition, 180);
+    settleTimer = window.setTimeout(applyFix, 180);
   }
 
-  const observer = new MutationObserver(schedulePosition);
+  const observer = new MutationObserver(scheduleFix);
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
   });
 
-  window.addEventListener("resize", schedulePosition, { passive: true });
-  window.addEventListener("orientationchange", schedulePosition, { passive: true });
-  window.addEventListener("pageshow", schedulePosition, { passive: true });
-  document.addEventListener("DOMContentLoaded", schedulePosition, { once: true });
+  window.addEventListener("resize", scheduleFix, { passive: true });
+  window.addEventListener("orientationchange", scheduleFix, { passive: true });
+  window.addEventListener("pageshow", scheduleFix, { passive: true });
+  document.addEventListener("DOMContentLoaded", scheduleFix, { once: true });
 
-  window.setInterval(schedulePosition, 1200);
-  schedulePosition();
+  window.setInterval(applyFix, 900);
+  window.setTimeout(applyFix, 0);
+  window.setTimeout(applyFix, 80);
+  window.setTimeout(applyFix, 300);
+  window.setTimeout(applyFix, 1000);
+  scheduleFix();
 })();
-/* AGRIREGISTRY_UI_V11_4_VIEWPORT_TOOLBAR_FIX_END */
+/* AGRIREGISTRY_UI_V11_5_FIXED_VIEWPORT_TOOLBAR_END */
