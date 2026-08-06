@@ -19,5 +19,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="en"><body><ServiceWorkerRegister /><BrandSplash />{children}</body></html>;
+  return <html lang="en"><body><ServiceWorkerRegister /><BrandSplash />{children}
+        {/* AGRIREGISTRY_UI_V9_ASSETS */}
+        <link rel="stylesheet" href="/agriregistry-ui-v9.css" />
+        <script src="/agriregistry-ui-v9.js" defer></script>
+      </body></html>;
 }
