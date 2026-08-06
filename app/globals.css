@@ -2124,3 +2124,96 @@ body::before {
   }
 }
 /* AGRIREGISTRY AUTO UPDATE V9 END */
+
+/* AGRIREGISTRY OFFLINE FIRST V13 START */
+.offline-work-banner {
+  width: min(1500px, calc(100% - 40px));
+  margin: 14px auto 6px;
+  padding: 15px 17px;
+  border: 1px solid rgba(255, 255, 255, .92);
+  border-radius: 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  color: #123b24;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(65, 158, 78, .24), transparent 34%),
+    linear-gradient(125deg, rgba(231, 248, 226, .98), rgba(255, 255, 255, .98) 58%, rgba(216, 239, 211, .98));
+  box-shadow: 0 16px 38px rgba(21, 84, 43, .16);
+  backdrop-filter: blur(18px);
+}
+
+.offline-work-banner.offline {
+  background:
+    radial-gradient(circle at 8% 20%, rgba(207, 145, 61, .2), transparent 34%),
+    linear-gradient(125deg, rgba(255, 245, 224, .98), rgba(255, 255, 255, .98) 58%, rgba(223, 242, 216, .98));
+}
+
+.offline-work-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #2f8b4d, #105f33);
+}
+
+.offline-work-banner.offline .offline-work-icon {
+  background: linear-gradient(145deg, #bf7933, #85501f);
+}
+
+.offline-work-banner strong {
+  display: block;
+  color: #0d552d;
+  font-size: 1rem;
+}
+
+.offline-work-banner p {
+  margin: 3px 0 0;
+  color: #496955;
+  font-size: .9rem;
+  line-height: 1.4;
+}
+
+.offline-work-banner button {
+  min-height: 43px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, #2c854b, #125f34);
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.offline-work-banner button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.offline-work-banner svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 780px) {
+  .offline-work-banner {
+    width: calc(100% - 20px);
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    border-radius: 18px;
+  }
+
+  .offline-work-banner button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+/* AGRIREGISTRY OFFLINE FIRST V13 END */

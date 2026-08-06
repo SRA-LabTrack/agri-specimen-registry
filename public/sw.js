@@ -1,4 +1,4 @@
-const VERSION = "agriregistry-shared-delete-exit-20260731-v8";
+const VERSION = "agriregistry-offline-first-20260806-v13";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

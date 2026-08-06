@@ -90,6 +90,54 @@ function generateAutomaticSpecimenNo(index = 0): string {
   return `AUTO-${Date.now().toString(36).toUpperCase()}-${index.toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
+// AGRIREGISTRY_OFFLINE_FIRST_V13_HELPERS
+function createStableOfflineRowId(): string {
+  const randomPart =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 24)
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
+
+  return `row-${randomPart}`.slice(0, 36);
+}
+
+function appwriteErrorCode(error: unknown): number {
+  if (!error || typeof error !== "object") return 0;
+
+  const candidate = error as {
+    code?: number;
+    status?: number;
+    response?: { code?: number };
+  };
+
+  return Number(
+    candidate.code
+      || candidate.status
+      || candidate.response?.code
+      || 0,
+  );
+}
+
+function isConnectivityFailure(error: unknown): boolean {
+  const code = appwriteErrorCode(error);
+  const message = appwriteError(error).toLowerCase();
+
+  return (
+    code === 0
+    || code === 408
+    || code === 502
+    || code === 503
+    || code === 504
+    || message.includes("failed to fetch")
+    || message.includes("networkerror")
+    || message.includes("network request failed")
+    || message.includes("load failed")
+    || message.includes("econnreset")
+    || message.includes("econnrefused")
+    || message.includes("enotfound")
+    || message.includes("timed out")
+  );
+}
+
 function formatDate(value?: string): string {
   if (!value) return "Not provided";
   const date = new Date(value);
@@ -670,6 +718,10 @@ export default function Home() {
       await cacheRows(activeUserId, combined);
       void warmRegistryPhotoCache(remoteRows);
     } catch (error) {
+      if (isConnectivityFailure(error)) {
+        setIsOnline(false);
+      }
+
       if (!cached.length && !quiet) {
         showToast({ type: "error", message: `Could not load specimens: ${appwriteError(error)}` });
       }
@@ -727,13 +779,25 @@ export default function Home() {
             );
 
             if (mutation.kind === "create") {
-              await tablesDB.createRow({
-                databaseId: APPWRITE_DATABASE_ID,
-                tableId: APPWRITE_TABLE_ID,
-                rowId: ID.unique(),
+              try {
+                await tablesDB.createRow({
+                  databaseId: APPWRITE_DATABASE_ID,
+                  tableId: APPWRITE_TABLE_ID,
+                  rowId: mutation.targetId,
                 data: core,
-                permissions: sharedRowPermissions(mutation.creator.id),
-              });
+                  permissions: sharedRowPermissions(mutation.creator.id),
+                });
+              } catch (error) {
+                if (appwriteErrorCode(error) !== 409) throw error;
+
+                await tablesDB.updateRow({
+                  databaseId: APPWRITE_DATABASE_ID,
+                  tableId: APPWRITE_TABLE_ID,
+                  rowId: mutation.targetId,
+                  data: core,
+                  permissions: sharedRowPermissions(mutation.creator.id),
+                });
+              }
             } else {
               await tablesDB.updateRow({
                 databaseId: APPWRITE_DATABASE_ID,
@@ -752,9 +816,18 @@ export default function Home() {
           );
           await removeMutation(mutation);
           synced += 1;
+          setIsOnline(true);
           setPendingCount(await getPendingMutationCount(activeUser.$id));
-        } catch {
+        } catch (error) {
           failed += 1;
+
+          if (isConnectivityFailure(error)) {
+            setIsOnline(false);
+          }
+
+          // Keep strict queue order. The failed item and everything after it
+          // remain stored for the automatic retry.
+          break;
         }
       }
 
@@ -830,6 +903,19 @@ export default function Home() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
+  }, [user?.$id]);
+
+  // AGRIREGISTRY_OFFLINE_FIRST_V13_RETRY
+  useEffect(() => {
+    if (!user) return;
+
+    const timer = window.setInterval(() => {
+      if (navigator.onLine) {
+        void syncPendingChanges(user);
+      }
+    }, 10000);
+
+    return () => window.clearInterval(timer);
   }, [user?.$id]);
 
   const filteredRows = useMemo(() => {
@@ -1209,7 +1295,7 @@ export default function Home() {
         name: editingRow?.createdByName || user.name || user.email,
         email: editingRow?.createdByEmail || user.email,
       };
-      const targetId = editingRow?.$id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const targetId = editingRow?.$id || createStableOfflineRowId();
       const status = editingRow ? "pending-update" : "pending-create";
       const core = buildRecordCore(savedFormData, creator, finalPhotos);
       const snapshot = createOfflineSnapshot(editingRow, targetId, core, status);
@@ -1237,11 +1323,14 @@ export default function Home() {
       setFormOpen(false);
       showToast({
         type: "success",
-        message: isOnline
-          ? "Change queued and syncing to Appwrite."
-          : "Saved on this device. It will sync automatically when internet returns.",
+        message: navigator.onLine
+          ? "Saved on this computer. Synchronization is starting in the background."
+          : "Saved on this computer. It will sync automatically when internet returns.",
       });
-      if (isOnline) void syncPendingChanges(user);
+
+      if (navigator.onLine) {
+        void syncPendingChanges(user);
+      }
     } catch (error) {
       showToast({ type: "error", message: `Could not queue offline change: ${appwriteError(error)}` });
     } finally {
@@ -1249,194 +1338,163 @@ export default function Home() {
     }
   };
 
+  // AGRIREGISTRY_OFFLINE_FIRST_V15_SAVE
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
+
     if (!user) return;
+
     if (photoCompressionBusy) {
-      showToast({ type: "error", message: "Please wait for photo compression to finish before saving." });
+      showToast({
+        type: "error",
+        message: "Please wait for photo compression to finish before saving.",
+      });
       return;
     }
 
     const enteredSpecimenNo = formData.specimenNo.trim();
 
-    if (!isOnline || editingRow?.__offlineStatus) {
-      await queueCurrentSave(enteredSpecimenNo);
-      return;
-    }
+    // Always save to IndexedDB first. Networking happens only after the
+    // local mutation is safely queued, so a temporary connection failure
+    // can never discard the specimen form or its photographs.
+    await queueCurrentSave(enteredSpecimenNo);
+  };
 
-    setSaving(true);
+  // AGRIREGISTRY_OFFLINE_FIRST_V16_STATUS
+  const quickStatus = async (
+    row: SpecimenRow,
+    status: string,
+  ) => {
+    const activeUser = user;
+
+    if (!activeUser) return;
+
     try {
-      const uploaded: PhotoMap = { ...existingPhotos };
-      const filesToDelete = new Set(removedPhotoIds);
-      for (const slot of photoSlots) {
-        const file = photoFiles[slot.key];
-        if (!file) continue;
-        const previousFileId = uploaded[slot.key];
-        if (previousFileId) filesToDelete.add(previousFileId);
-        const result = await storage.createFile({
-          bucketId: APPWRITE_BUCKET_ID,
-          fileId: ID.unique(),
-          file,
-          permissions: sharedPhotoPermissions(),
-        });
-        uploaded[slot.key] = result.$id;
-        await cachePhoto(result.$id, file);
-      }
-
-      const generatedSpecimenNo = generateAutomaticSpecimenNo();
-      const storedSpecimenNo = enteredSpecimenNo || generatedSpecimenNo;
-      const savedFormData = { ...formData, specimenNo: storedSpecimenNo };
-      const creator = {
-        id: editingRow?.createdById || user.$id,
-        name: editingRow?.createdByName || user.name || user.email,
-        email: editingRow?.createdByEmail || user.email,
+      const data = {
+        ...parseSpecimenData(row),
+        sampleStatus: status,
       };
-      const core = buildRecordCore(savedFormData, creator, uploaded);
 
-      let successMessage: string;
-      if (editingRow) {
-        await tablesDB.updateRow({
-          databaseId: APPWRITE_DATABASE_ID,
-          tableId: APPWRITE_TABLE_ID,
-          rowId: editingRow.$id,
-          data: core,
-          permissions: sharedRowPermissions(creator.id),
-        });
-        successMessage = "Every specimen field and photo change was saved.";
-      } else {
-        await tablesDB.createRow({
-          databaseId: APPWRITE_DATABASE_ID,
-          tableId: APPWRITE_TABLE_ID,
-          rowId: ID.unique(),
-          data: core,
-          permissions: sharedRowPermissions(creator.id),
-        });
-        successMessage = "Specimen added to the registry.";
-      }
+      const creator = {
+        id: row.createdById,
+        name: row.createdByName,
+        email: row.createdByEmail,
+      };
 
-      const deletionResults = await Promise.allSettled(
-        [...filesToDelete].map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
+      const core = buildRecordCore(
+        data,
+        creator,
+        parsePhotoMap(row),
       );
-      if (deletionResults.some((result) => result.status === "rejected")) {
-        successMessage += " The record was saved, but one old photo could not be removed from storage.";
+
+      const snapshot = createOfflineSnapshot(
+        row,
+        row.$id,
+        core,
+        row.__offlineStatus || "pending-update",
+      );
+
+      const mutation: OfflineMutation = {
+        id:
+          `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        userId: activeUser.$id,
+        kind: "update",
+        targetId: row.$id,
+        queuedAt: new Date().toISOString(),
+        creator,
+        formData: data,
+        photoMap: parsePhotoMap(row),
+        rowSnapshot: snapshot,
+      };
+
+      await enqueueMutation(mutation);
+
+      const nextRows = rows.map((item) =>
+        item.$id === row.$id ? snapshot : item,
+      );
+
+      setRows(nextRows);
+      await cacheRows(activeUser.$id, nextRows);
+      await refreshPendingCount(activeUser.$id);
+
+      if (detailsRow?.$id === row.$id) {
+        setDetailsRow(snapshot);
       }
 
-      showToast({ type: "success", message: successMessage });
-      setFormOpen(false);
-      await loadRows(user.$id);
+      showToast({
+        type: "success",
+        message:
+          `Status saved on this device as ${status}. It will synchronize automatically.`,
+      });
+
+      if (navigator.onLine) {
+        void syncPendingChanges(activeUser);
+      }
     } catch (error) {
-      const message = appwriteError(error);
-      const oldUniqueIndexStillActive = /unique|duplicate|already exists/i.test(message);
       showToast({
         type: "error",
-        message: oldUniqueIndexStillActive
-          ? "The old unique Specimen No. index is still active in Appwrite. Run npm run migrate:shared-editing once, then try again."
-          : `Could not save: ${message}`,
+        message:
+          `Could not save the status locally: ${appwriteError(error)}`,
       });
-    } finally {
-      setSaving(false);
     }
   };
 
-  const quickStatus = async (row: SpecimenRow, status: string) => {
-    if (!user) return;
-    const data = { ...parseSpecimenData(row), sampleStatus: status };
-    const creator = { id: row.createdById, name: row.createdByName, email: row.createdByEmail };
-
-    if (!isOnline || row.__offlineStatus) {
-      try {
-        const core = buildRecordCore(data, creator, parsePhotoMap(row));
-        const snapshot = createOfflineSnapshot(row, row.$id, core, row.__offlineStatus || "pending-update");
-        const mutation: OfflineMutation = {
-          id: `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          userId: user.$id,
-          kind: "update",
-          targetId: row.$id,
-          queuedAt: new Date().toISOString(),
-          creator,
-          formData: data,
-          photoMap: parsePhotoMap(row),
-          rowSnapshot: snapshot,
-        };
-        await enqueueMutation(mutation);
-        const nextRows = rows.map((item) => item.$id === row.$id ? snapshot : item);
-        setRows(nextRows);
-        await cacheRows(user.$id, nextRows);
-        await refreshPendingCount(user.$id);
-        if (detailsRow?.$id === row.$id) setDetailsRow(snapshot);
-        showToast({ type: "success", message: isOnline ? "Status queued for sync." : `Status saved offline as ${status}.` });
-        if (isOnline) void syncPendingChanges(user);
-      } catch (error) {
-        showToast({ type: "error", message: appwriteError(error) });
-      }
-      return;
-    }
-
-    try {
-      await tablesDB.updateRow({
-        databaseId: APPWRITE_DATABASE_ID,
-        tableId: APPWRITE_TABLE_ID,
-        rowId: row.$id,
-        data: {
-          sampleStatus: status,
-          dataJson: JSON.stringify(data),
-          searchText: buildSearchText(data, row.createdByName, row.createdByEmail),
-        },
-        permissions: sharedRowPermissions(row.createdById),
-      });
-      const nextRows = rows.map((item) => item.$id === row.$id ? { ...item, sampleStatus: status, dataJson: JSON.stringify(data), $updatedAt: new Date().toISOString() } : item);
-      setRows(nextRows);
-      await cacheRows(user.$id, nextRows);
-      if (detailsRow?.$id === row.$id) setDetailsRow({ ...detailsRow, sampleStatus: status, dataJson: JSON.stringify(data) });
-      showToast({ type: "success", message: `Status changed to ${status}.` });
-    } catch (error) {
-      showToast({ type: "error", message: appwriteError(error) });
-    }
-  };
-
+  // AGRIREGISTRY_OFFLINE_FIRST_V16_DELETE
   const deleteRow = async (row: SpecimenRow) => {
-    if (!user) return;
-    if (!window.confirm(`Delete specimen ${row.specimenNo}? This cannot be undone after synchronization.`)) return;
-    const photoIds = Object.values(parsePhotoMap(row)) as string[];
+    const activeUser = user;
 
-    if (!isOnline || row.__offlineStatus) {
-      try {
-        await enqueueMutation({
-          id: `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          userId: user.$id,
-          kind: "delete",
-          targetId: row.$id,
-          queuedAt: new Date().toISOString(),
-          creator: { id: row.createdById, name: row.createdByName, email: row.createdByEmail },
-          deleteFileIds: photoIds,
-        });
-        const nextRows = rows.filter((item) => item.$id !== row.$id);
-        setRows(nextRows);
-        await cacheRows(user.$id, nextRows);
-        await refreshPendingCount(user.$id);
-        setDetailsRow(null);
-        showToast({ type: "success", message: isOnline ? "Deletion queued for sync." : "Deletion saved offline and will sync automatically." });
-        if (isOnline) void syncPendingChanges(user);
-      } catch (error) {
-        showToast({ type: "error", message: appwriteError(error) });
-      }
-      return;
-    }
+    if (!activeUser) return;
+
+    const confirmed = window.confirm(
+      `Delete specimen ${row.specimenNo}? The deletion will synchronize when internet is available.`,
+    );
+
+    if (!confirmed) return;
 
     try {
-      await tablesDB.deleteRow({ databaseId: APPWRITE_DATABASE_ID, tableId: APPWRITE_TABLE_ID, rowId: row.$id });
-      await Promise.allSettled(
-        photoIds
-          .filter((fileId) => !fileId.startsWith(OFFLINE_PHOTO_PREFIX))
-          .map((fileId) => storage.deleteFile({ bucketId: APPWRITE_BUCKET_ID, fileId })),
-      );
-      const nextRows = rows.filter((item) => item.$id !== row.$id);
+      const photoIds =
+        Object.values(parsePhotoMap(row)) as string[];
+
+      const mutation: OfflineMutation = {
+        id:
+          `mutation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        userId: activeUser.$id,
+        kind: "delete",
+        targetId: row.$id,
+        queuedAt: new Date().toISOString(),
+        creator: {
+          id: row.createdById,
+          name: row.createdByName,
+          email: row.createdByEmail,
+        },
+        deleteFileIds: photoIds,
+      };
+
+      await enqueueMutation(mutation);
+
+      const nextRows =
+        rows.filter((item) => item.$id !== row.$id);
+
       setRows(nextRows);
-      await cacheRows(user.$id, nextRows);
+      await cacheRows(activeUser.$id, nextRows);
+      await refreshPendingCount(activeUser.$id);
       setDetailsRow(null);
-      showToast({ type: "success", message: "Specimen record and its photographs were deleted." });
+
+      showToast({
+        type: "success",
+        message:
+          "Deletion saved on this device. It will synchronize automatically.",
+      });
+
+      if (navigator.onLine) {
+        void syncPendingChanges(activeUser);
+      }
     } catch (error) {
-      showToast({ type: "error", message: appwriteError(error) });
+      showToast({
+        type: "error",
+        message:
+          `Could not save the deletion locally: ${appwriteError(error)}`,
+      });
     }
   };
 
@@ -1668,6 +1726,52 @@ export default function Home() {
         </nav>
         <button className="menu-button" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
       </header>
+
+      {/* AGRIREGISTRY_OFFLINE_FIRST_V13_BANNER */}
+      {(!isOnline || pendingCount > 0) && (
+        <section
+          className={
+            isOnline
+              ? "offline-work-banner pending"
+              : "offline-work-banner offline"
+          }
+          aria-live="polite"
+        >
+          <span className="offline-work-icon">
+            {syncing
+              ? <LoaderCircle className="spin" />
+              : isOnline
+                ? <Cloud />
+                : <CloudOff />}
+          </span>
+
+          <div>
+            <strong>
+              {syncing
+                ? "Synchronizing saved changes"
+                : isOnline
+                  ? `${pendingCount} change${pendingCount === 1 ? "" : "s"} waiting to sync`
+                  : "Working offline"}
+            </strong>
+            <p>
+              {isOnline
+                ? "Changes remain stored on this device until Appwrite confirms them."
+                : "You can add, edit, change status, attach photos, and delete records. Everything retries automatically."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (user) void syncPendingChanges(user);
+            }}
+            disabled={!navigator.onLine || syncing}
+          >
+            <RefreshCw />
+            {syncing ? "Syncing" : "Sync now"}
+          </button>
+        </section>
+      )}
 
       <section className="hero-section reveal">
         <div className="hero-copy">
