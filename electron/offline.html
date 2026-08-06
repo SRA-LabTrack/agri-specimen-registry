@@ -167,34 +167,62 @@
     document.getElementById("retry").addEventListener("click", retry);
 
     // AGRIREGISTRY_WINDOW_CONTROLS_V7_OFFLINE_SCRIPT
+    // AGRIREGISTRY_WINDOW_CONTROLS_COMPAT_V8_OFFLINE
     const desktop = window.agriregistryDesktop;
+    const fullscreenButton =
+      document.getElementById("fullscreen");
+    const minimizeButton =
+      document.getElementById("minimize");
 
-    async function refreshFullscreenLabel() {
-      if (!desktop) return;
+    const supportsWindowControls = Boolean(
+      desktop
+      && typeof desktop.getWindowState === "function"
+      && typeof desktop.toggleFullScreen === "function"
+      && typeof desktop.minimizeApp === "function"
+      && typeof desktop.onWindowState === "function"
+    );
 
-      const state = await desktop.getWindowState();
-      document.getElementById("fullscreen").textContent =
-        state.isFullScreen ? "Exit full screen" : "Full screen";
+    if (!supportsWindowControls) {
+      fullscreenButton.hidden = true;
+      minimizeButton.hidden = true;
+    } else {
+      async function refreshFullscreenLabel() {
+        try {
+          const state = await desktop.getWindowState();
+          fullscreenButton.textContent =
+            state.isFullScreen
+              ? "Exit full screen"
+              : "Full screen";
+        } catch {
+          fullscreenButton.hidden = true;
+          minimizeButton.hidden = true;
+        }
+      }
+
+      fullscreenButton.addEventListener(
+        "click",
+        async () => {
+          const state = await desktop.toggleFullScreen();
+          fullscreenButton.textContent =
+            state.isFullScreen
+              ? "Exit full screen"
+              : "Full screen";
+        },
+      );
+
+      minimizeButton.addEventListener("click", () => {
+        desktop.minimizeApp();
+      });
+
+      desktop.onWindowState((state) => {
+        fullscreenButton.textContent =
+          state.isFullScreen
+            ? "Exit full screen"
+            : "Full screen";
+      });
+
+      void refreshFullscreenLabel();
     }
-
-    document.getElementById("fullscreen").addEventListener("click", async () => {
-      if (!desktop) return;
-
-      const state = await desktop.toggleFullScreen();
-      document.getElementById("fullscreen").textContent =
-        state.isFullScreen ? "Exit full screen" : "Full screen";
-    });
-
-    document.getElementById("minimize").addEventListener("click", () => {
-      desktop?.minimizeApp();
-    });
-
-    desktop?.onWindowState((state) => {
-      document.getElementById("fullscreen").textContent =
-        state.isFullScreen ? "Exit full screen" : "Full screen";
-    });
-
-    void refreshFullscreenLabel();
 
     // AGRIREGISTRY_OFFLINE_EXIT_V7_SCRIPT
     document.getElementById("exit").addEventListener("click", () => {

@@ -653,6 +653,11 @@ export default function Home() {
   const [isOnline, setIsOnline] = useState(true);
   // AGRIREGISTRY_DESKTOP_EXIT_V7_STATE
   const [isDesktopApp, setIsDesktopApp] = useState(false);
+  // AGRIREGISTRY_WINDOW_CONTROLS_COMPAT_V8_STATE
+  const [
+    desktopWindowControlsReady,
+    setDesktopWindowControlsReady,
+  ] = useState(false);
   // AGRIREGISTRY_WINDOW_CONTROLS_V7_STATE
   const [desktopWindowState, setDesktopWindowState] =
     useState<AgriRegistryWindowState>({
@@ -667,6 +672,7 @@ export default function Home() {
   const photoCompressionBusy = Object.values(compressingPhotoSlots).some(Boolean);
 
   // AGRIREGISTRY_DESKTOP_EXIT_V7_FUNCTION
+  // AGRIREGISTRY_WINDOW_CONTROLS_COMPAT_V8_EFFECT
   useEffect(() => {
     const desktop = window.agriregistryDesktop;
     const detected =
@@ -675,13 +681,30 @@ export default function Home() {
 
     setIsDesktopApp(detected);
 
-    if (!desktop) return;
+    const supportsWindowControls = Boolean(
+      desktop
+      && typeof desktop.getWindowState === "function"
+      && typeof desktop.onWindowState === "function"
+      && typeof desktop.enterFullScreen === "function"
+      && typeof desktop.exitFullScreen === "function"
+      && typeof desktop.minimizeApp === "function",
+    );
+
+    setDesktopWindowControlsReady(supportsWindowControls);
+
+    if (!desktop || !supportsWindowControls) {
+      return;
+    }
 
     let active = true;
 
-    void desktop.getWindowState().then((state) => {
-      if (active) setDesktopWindowState(state);
-    });
+    void desktop.getWindowState()
+      .then((state) => {
+        if (active) setDesktopWindowState(state);
+      })
+      .catch(() => {
+        if (active) setDesktopWindowControlsReady(false);
+      });
 
     const dispose = desktop.onWindowState((state) => {
       if (active) setDesktopWindowState(state);
@@ -694,19 +717,42 @@ export default function Home() {
   }, []);
 
   // AGRIREGISTRY_WINDOW_CONTROLS_V7_FUNCTIONS
+  // AGRIREGISTRY_WINDOW_CONTROLS_COMPAT_V8_FUNCTIONS
   const toggleDesktopFullScreen = async () => {
     const desktop = window.agriregistryDesktop;
-    if (!desktop) return;
 
-    const state = desktopWindowState.isFullScreen
-      ? await desktop.exitFullScreen()
-      : await desktop.enterFullScreen();
+    if (
+      !desktopWindowControlsReady
+      || !desktop
+      || typeof desktop.enterFullScreen !== "function"
+      || typeof desktop.exitFullScreen !== "function"
+    ) {
+      return;
+    }
 
-    setDesktopWindowState(state);
+    try {
+      const state = desktopWindowState.isFullScreen
+        ? await desktop.exitFullScreen()
+        : await desktop.enterFullScreen();
+
+      setDesktopWindowState(state);
+    } catch {
+      setDesktopWindowControlsReady(false);
+    }
   };
 
   const minimizeDesktopApp = () => {
-    window.agriregistryDesktop?.minimizeApp();
+    const desktop = window.agriregistryDesktop;
+
+    if (
+      !desktopWindowControlsReady
+      || !desktop
+      || typeof desktop.minimizeApp !== "function"
+    ) {
+      return;
+    }
+
+    desktop.minimizeApp();
   };
 
   const exitDesktopApp = () => {
@@ -1653,7 +1699,7 @@ export default function Home() {
         {/* AGRIREGISTRY_AUTO_UPDATE_V9_AUTH_BANNER */}
         <DesktopUpdateBanner />
         {/* AGRIREGISTRY_WINDOW_CONTROLS_V7_AUTH */}
-        {isDesktopApp && (
+        {desktopWindowControlsReady && (
           <div className="desktop-auth-window-controls">
             <button
               type="button"
@@ -1802,7 +1848,7 @@ export default function Home() {
             </button>
           )}
           {/* AGRIREGISTRY_WINDOW_CONTROLS_V7_BUTTONS */}
-          {isDesktopApp && (
+          {desktopWindowControlsReady && (
             <>
               <button
                 className="desktop-window-button fullscreen"

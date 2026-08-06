@@ -499,12 +499,20 @@ async function showOfflineFallback(window) {
   }
 }
 
+// AGRIREGISTRY_PAGE_LOAD_RECOVERY_V8_LOAD
 async function loadRegistry(window) {
   if (window.isDestroyed()) return;
 
   try {
-    await window.loadURL(APP_URL);
-  } catch {
+    await window.loadURL(APP_URL, {
+      extraHeaders: "Cache-Control: no-cache\r\n",
+    });
+  } catch (error) {
+    console.error(
+      "AgriRegistry could not open the hosted website",
+      error,
+    );
+
     await showOfflineFallback(window);
   }
 }
@@ -604,24 +612,74 @@ function createWindow() {
     });
   });
 
+  // AGRIREGISTRY_PAGE_LOAD_RECOVERY_V8_FAILURE
   mainWindow.webContents.on(
     "did-fail-load",
-    (_event, errorCode, _description, validatedUrl, isMainFrame) => {
-      if (
-        !isMainFrame ||
-        errorCode === -3 ||
-        !isTrustedAppUrl(validatedUrl)
-      ) {
+    (_event, errorCode, description, validatedUrl, isMainFrame) => {
+      if (!isMainFrame || errorCode === -3) {
         return;
       }
+
+      const currentUrl =
+        mainWindow && !mainWindow.isDestroyed()
+          ? mainWindow.webContents.getURL()
+          : "";
+
+      if (currentUrl.startsWith("file:")) {
+        return;
+      }
+
+      console.error("AgriRegistry main page failed to load", {
+        errorCode,
+        description,
+        validatedUrl,
+        currentUrl,
+      });
 
       setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           void showOfflineFallback(mainWindow);
         }
-      }, 350);
+      }, 180);
     },
   );
+
+  mainWindow.webContents.on("did-navigate", (_event, url) => {
+    if (
+      url.startsWith("chrome-error://")
+      || url.startsWith("chrome://network-error")
+    ) {
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          void showOfflineFallback(mainWindow);
+        }
+      }, 120);
+    }
+  });
+
+  mainWindow.webContents.on(
+    "render-process-gone",
+    (_event, details) => {
+      console.error(
+        "AgriRegistry renderer process ended",
+        details,
+      );
+
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          void showOfflineFallback(mainWindow);
+        }
+      }, 250);
+    },
+  );
+
+  mainWindow.on("unresponsive", () => {
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        void showOfflineFallback(mainWindow);
+      }
+    }, 500);
+  });
 
   // AGRIREGISTRY_AUTO_UPDATE_V9_FINISH_LOAD
   mainWindow.webContents.on("did-finish-load", () => {
