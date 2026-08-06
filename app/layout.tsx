@@ -26,15 +26,5 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           src="/agriregistry-ui-cleanup-v12.js?v=12.1.0"
           defer
         ></script>
-
-        {/* AGRIREGISTRY_ACCOUNT_ONLY_V12_3_ASSETS */}
-        <link
-          rel="stylesheet"
-          href="/agriregistry-account-only-v12-3.css?v=12.3.0"
-        />
-        <script
-          src="/agriregistry-account-only-v12-3.js?v=12.3.0"
-          defer
-        ></script>
       </body></html>;
 }

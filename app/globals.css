@@ -2328,3 +2328,266 @@ body::before {
   }
 }
 /* AGRIREGISTRY WINDOW CONTROLS V7 END */
+
+/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.4 START
+   Source-level repair only. Keeps the original toolbar markup and actions.
+*/
+@media (min-width: 1061px) {
+  .dashboard-shell {
+    padding-top: 124px;
+  }
+
+  .topbar {
+    width: min(1560px, calc(100% - 32px));
+    max-width: calc(100% - 32px);
+    min-width: 0;
+    min-height: 92px;
+    padding: 10px 12px;
+    gap: 8px;
+    flex-flow: row nowrap;
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+
+  .agriregistry-topbar-brand {
+    flex: 0 0 clamp(205px, 15vw, 260px);
+    width: clamp(205px, 15vw, 260px);
+    min-width: 205px;
+    max-width: 260px;
+  }
+
+  .agriregistry-topbar-brand .agriregistry-logo-surface {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .nav-actions {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    overflow: hidden;
+  }
+
+  .nav-actions > button {
+    flex: 0 0 auto;
+    min-width: 0;
+    height: 64px;
+    min-height: 64px;
+    max-height: 64px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .nav-actions > button > span,
+  .nav-actions > button strong,
+  .nav-actions > button small {
+    white-space: nowrap;
+  }
+
+  .sync-chip {
+    width: 145px;
+    min-width: 145px;
+    max-width: 145px;
+  }
+
+  .desktop-update-check-button {
+    width: 116px;
+    min-width: 116px;
+    max-width: 116px;
+  }
+
+  .desktop-window-button.fullscreen {
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+  }
+
+  .desktop-window-button.minimize {
+    width: 122px;
+    min-width: 122px;
+    max-width: 122px;
+  }
+
+  .desktop-exit-button {
+    width: 88px;
+    min-width: 88px;
+    max-width: 88px;
+  }
+
+  .profile-button {
+    flex: 0 0 220px;
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    height: 64px;
+    min-height: 64px;
+    max-height: 64px;
+    padding: 7px 9px;
+    gap: 9px;
+    overflow: hidden;
+  }
+
+  .profile-button > span {
+    flex: 0 0 38px;
+    width: 38px;
+    min-width: 38px;
+    max-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    max-height: 38px;
+  }
+
+  .profile-button > div {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+  }
+
+  .profile-button strong,
+  .profile-button small {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-button > svg {
+    flex: 0 0 18px;
+    width: 18px;
+    min-width: 18px;
+    max-width: 18px;
+  }
+}
+
+@media (min-width: 1061px) and (max-width: 1500px) {
+  .topbar {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    padding-inline: 8px;
+    gap: 4px;
+  }
+
+  .agriregistry-topbar-brand {
+    flex-basis: 180px;
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+  }
+
+  .agriregistry-topbar-brand .agriregistry-logo-surface {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .agriregistry-topbar-brand .agriregistry-emblem {
+    width: 38px;
+    height: 38px;
+  }
+
+  .agriregistry-topbar-brand .agriregistry-brand-copy strong {
+    font-size: 1rem;
+  }
+
+  .nav-actions {
+    gap: 4px;
+  }
+
+  .nav-actions > button {
+    height: 58px;
+    min-height: 58px;
+    max-height: 58px;
+    padding-inline: 7px;
+    gap: 6px;
+    font-size: .76rem;
+  }
+
+  .nav-actions > .ghost-button:nth-child(1) {
+    width: 105px;
+    min-width: 105px;
+    max-width: 105px;
+  }
+
+  .nav-actions > .ghost-button:nth-child(2) {
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
+  }
+
+  .nav-actions > .primary-button:nth-child(3) {
+    width: 130px;
+    min-width: 130px;
+    max-width: 130px;
+  }
+
+  .sync-chip {
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
+  }
+
+  .desktop-update-check-button {
+    width: 98px;
+    min-width: 98px;
+    max-width: 98px;
+  }
+
+  .desktop-window-button.fullscreen {
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
+  }
+
+  .desktop-window-button.minimize {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+  }
+
+  .desktop-exit-button {
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+  }
+
+  .profile-button {
+    flex-basis: 185px;
+    width: 185px;
+    min-width: 185px;
+    max-width: 185px;
+    height: 58px;
+    min-height: 58px;
+    max-height: 58px;
+    padding-inline: 6px;
+    gap: 6px;
+  }
+
+  .profile-button > span {
+    flex-basis: 36px;
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+  }
+
+  .profile-button strong {
+    font-size: .74rem;
+  }
+
+  .profile-button small {
+    font-size: .61rem;
+  }
+}
+/* AGRIREGISTRY NATIVE TOOLBAR ACCOUNT FIX V12.4 END */
