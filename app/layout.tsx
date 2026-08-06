@@ -22,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return <html lang="en"><body><ServiceWorkerRegister /><BrandSplash />{children}
 
         {/* AGRIREGISTRY_UI_V11_ASSETS */}
-        <link rel="stylesheet" href="/agriregistry-ui-v11.css" />
-        <script src="/agriregistry-ui-v11.js" defer></script>
+        <link rel="stylesheet" href="/agriregistry-ui-v11.css?v=11.3" />
+        <script src="/agriregistry-ui-v11.js?v=11.3" defer></script>
       </body></html>;
 }

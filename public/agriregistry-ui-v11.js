@@ -251,7 +251,27 @@
 
     statusAction.dataset.v11StatusPrimary = primary;
     statusAction.dataset.v11StatusSecondary = secondary;
-    statusAction.setAttribute("title", `${primary} â€” ${secondary}`);
+    statusAction.setAttribute("title", `${primary} - ${secondary}`);
+
+    let copy = statusAction.querySelector(".agriregistry-v11-status-copy");
+    if (!copy) {
+      copy = document.createElement("span");
+      copy.className = "agriregistry-v11-status-copy";
+
+      const primaryNode = document.createElement("strong");
+      primaryNode.className = "agriregistry-v11-status-primary";
+
+      const secondaryNode = document.createElement("small");
+      secondaryNode.className = "agriregistry-v11-status-secondary";
+
+      copy.append(primaryNode, secondaryNode);
+      statusAction.appendChild(copy);
+    }
+
+    const primaryNode = copy.querySelector(".agriregistry-v11-status-primary");
+    const secondaryNode = copy.querySelector(".agriregistry-v11-status-secondary");
+    if (primaryNode) primaryNode.textContent = primary;
+    if (secondaryNode) secondaryNode.textContent = secondary;
   }
 
   function markProfile(toolbar, actionsRoot) {
@@ -452,7 +472,7 @@
   }
 
   function showLoginAnimation(force = false) {
-    if (!dashboardIsReady()) return false;
+    if (!force && !dashboardIsReady()) return false;
     if (!force && !pendingLoginAnimation()) return false;
     if (document.getElementById("agriregistry-v11-login-splash")) return false;
     if (animationShownForTransition) return false;
@@ -736,6 +756,7 @@
       const form = event.target;
       if (form instanceof HTMLFormElement && form.querySelector("input[type='password']")) {
         armLoginAnimation(form);
+        window.setTimeout(() => showLoginAnimation(true), 90);
       }
     },
     true,
@@ -759,6 +780,7 @@
         (passwordVisible && /log in|login|sign in|continue/.test(label))
       ) {
         armLoginAnimation(form || findLoginForm());
+        window.setTimeout(() => showLoginAnimation(true), 90);
       }
     },
     true,

@@ -610,3 +610,228 @@ html {
     filter: none !important;
   }
 }
+
+/* AGRIREGISTRY_UI_V11_3_TOOLBAR_RECOVERY
+   Corrects the oversized brand image and keeps the complete desktop header
+   on one compact row without redesigning the application.
+*/
+.agriregistry-v11-toolbar {
+  height: 118px !important;
+  min-height: 118px !important;
+  max-height: 118px !important;
+  padding: 10px 14px !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+.agriregistry-v11-toolbar > * {
+  min-height: 0 !important;
+  max-height: 88px !important;
+  align-self: center !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-actions {
+  height: 88px !important;
+  min-height: 0 !important;
+  max-height: 88px !important;
+  align-items: center !important;
+  overflow: hidden !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-actions > *,
+.agriregistry-v11-toolbar .agriregistry-v11-item {
+  height: 72px !important;
+  min-height: 72px !important;
+  max-height: 72px !important;
+  align-self: center !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-logo {
+  flex: 0 1 230px !important;
+  width: 230px !important;
+  min-width: 190px !important;
+  max-width: 230px !important;
+  height: 84px !important;
+  min-height: 84px !important;
+  max-height: 84px !important;
+  padding: 6px 10px !important;
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  overflow: hidden !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-logo img,
+.agriregistry-v11-toolbar .agriregistry-v11-logo svg,
+.agriregistry-v11-toolbar .agriregistry-v11-logo picture {
+  flex: 0 1 auto !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 72px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-logo > * {
+  max-height: 72px !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-control {
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+  padding: 0 12px !important;
+  font-size: clamp(13px, 0.82vw, 16px) !important;
+  line-height: 1.05 !important;
+}
+
+.agriregistry-v11-item-registry { flex: 0 1 122px !important; max-width: 122px !important; }
+.agriregistry-v11-item-import { flex: 0 1 168px !important; max-width: 168px !important; }
+.agriregistry-v11-item-add { flex: 0 1 184px !important; max-width: 184px !important; }
+.agriregistry-v11-item-updates { flex: 0 1 134px !important; max-width: 134px !important; }
+.agriregistry-v11-item-fullscreen { flex: 0 1 184px !important; max-width: 184px !important; }
+.agriregistry-v11-item-minimize { flex: 0 1 142px !important; max-width: 142px !important; }
+.agriregistry-v11-item-exit { flex: 0 1 100px !important; max-width: 100px !important; }
+
+.agriregistry-v11-toolbar .agriregistry-v11-status {
+  flex: 0 1 160px !important;
+  width: 160px !important;
+  min-width: 145px !important;
+  max-width: 160px !important;
+  padding-inline: 12px !important;
+  justify-content: flex-start !important;
+  gap: 9px !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-status::after {
+  content: none !important;
+  display: none !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-status-copy {
+  min-width: 0 !important;
+  max-width: 112px !important;
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  overflow: hidden !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-status-copy,
+.agriregistry-v11-toolbar .agriregistry-v11-status-copy * {
+  color: #123f2a !important;
+  font-style: normal !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-status-primary {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 13px !important;
+  line-height: 1.05 !important;
+  font-weight: 850 !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-status-secondary {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  font-weight: 650 !important;
+  opacity: 0.78 !important;
+}
+
+.agriregistry-v11-toolbar .agriregistry-v11-profile {
+  flex: 0 1 220px !important;
+  width: 220px !important;
+  min-width: 180px !important;
+  max-width: 220px !important;
+  height: 72px !important;
+  min-height: 72px !important;
+  max-height: 72px !important;
+}
+
+.agriregistry-v11-toolbar + *,
+.agriregistry-v11-toolbar ~ main {
+  position: relative !important;
+  z-index: 0 !important;
+}
+
+@media (max-width: 1700px) {
+  .agriregistry-v11-toolbar {
+    padding-inline: 10px !important;
+    gap: 5px !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-actions {
+    gap: 5px !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-logo {
+    flex-basis: 190px !important;
+    width: 190px !important;
+    min-width: 166px !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-control {
+    padding-inline: 8px !important;
+    font-size: 13px !important;
+  }
+
+  .agriregistry-v11-item-registry { flex-basis: 108px !important; }
+  .agriregistry-v11-item-import { flex-basis: 145px !important; }
+  .agriregistry-v11-item-add { flex-basis: 154px !important; }
+  .agriregistry-v11-item-updates { flex-basis: 116px !important; }
+  .agriregistry-v11-item-fullscreen { flex-basis: 154px !important; }
+  .agriregistry-v11-item-minimize { flex-basis: 120px !important; }
+  .agriregistry-v11-item-exit { flex-basis: 84px !important; }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-status {
+    flex-basis: 132px !important;
+    width: 132px !important;
+    min-width: 122px !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-status-secondary {
+    display: none !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-profile {
+    flex-basis: 178px !important;
+    width: 178px !important;
+    min-width: 150px !important;
+  }
+}
+
+@media (max-width: 1320px) {
+  .agriregistry-v11-toolbar {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin !important;
+  }
+
+  .agriregistry-v11-toolbar .agriregistry-v11-actions,
+  .agriregistry-v11-toolbar .agriregistry-v11-logo,
+  .agriregistry-v11-toolbar .agriregistry-v11-item,
+  .agriregistry-v11-toolbar .agriregistry-v11-status,
+  .agriregistry-v11-toolbar .agriregistry-v11-profile {
+    flex-shrink: 0 !important;
+  }
+}
